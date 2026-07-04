@@ -69,7 +69,7 @@ def list_assets(project_id: str, user: User = Depends(get_current_user), db: Ses
     return db.query(MediaAsset).filter(MediaAsset.project_id == project_id).all()
 
 
-@router.post("/")
+@router.post("/", status_code=201)
 def upload_asset(
     project_id: str,
     file: UploadFile = File(...),

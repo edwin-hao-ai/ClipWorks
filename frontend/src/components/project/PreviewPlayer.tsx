@@ -2,8 +2,6 @@ interface Props {
   videoUrl?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export function PreviewPlayer({ videoUrl }: Props) {
   if (!videoUrl) {
     return (
@@ -19,7 +17,7 @@ export function PreviewPlayer({ videoUrl }: Props) {
         src={videoUrl}
         controls
         className="max-w-full max-h-full"
-        poster={`${API_URL}/api/static/placeholder.png`}
+        poster="/api/static/placeholder.png"
       />
     </div>
   );

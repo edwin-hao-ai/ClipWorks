@@ -23,7 +23,7 @@ def list_projects(user: User = Depends(get_current_user), db: Session = Depends(
     return db.query(Project).filter(Project.user_id == user.id).order_by(Project.created_at.desc()).all()
 
 
-@router.post("/", response_model=ProjectOut)
+@router.post("/", response_model=ProjectOut, status_code=201)
 def create_project(payload: ProjectCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = Project(
         user_id=user.id,

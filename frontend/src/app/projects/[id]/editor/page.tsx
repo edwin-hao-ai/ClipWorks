@@ -9,23 +9,65 @@ import { Timeline } from '@/components/editor/Timeline';
 import { PreviewPlayer } from '@/components/project/PreviewPlayer';
 import { Composition, Project } from '@/lib/types';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/Button';
 
 export default function EditorPage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [composition, setComposition] = useState<Composition | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get(`/projects/${id}`).then(setProject);
-    api.get(`/compositions/${id}`).then((data) => {
-      if (!data.error) setComposition(data);
-    });
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [projectData, compositionData] = await Promise.all([
+          api.get(`/projects/${id}`),
+          api.get(`/compositions/${id}`),
+        ]);
+        if (!cancelled) {
+          setProject(projectData);
+          setComposition(compositionData.error ? null : compositionData);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : '加载编辑器失败');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  if (!project || !composition) {
+  if (loading) {
     return (
       <AuthGuard>
         <div className="min-h-screen flex items-center justify-center">加载中…</div>
+      </AuthGuard>
+    );
+  }
+
+  if (error || !project || !composition) {
+    return (
+      <AuthGuard>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <p className="text-red-600 mb-4">{error || '项目或合成信息不存在'}</p>
+            <Button onClick={() => window.location.reload()}>重试</Button>
+          </div>
+        </div>
       </AuthGuard>
     );
   }

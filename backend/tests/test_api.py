@@ -63,7 +63,7 @@ def test_auth_flow(client):
 
 def test_create_and_list_project(auth_client):
     r = auth_client.post("/projects/", json={"title": "Test Project", "source_url": "https://example.com"})
-    assert r.status_code == 200
+    assert r.status_code == 201
     project = r.json()
     assert project["title"] == "Test Project"
 
@@ -79,7 +79,7 @@ def test_get_project_not_found(auth_client):
 
 def test_project_ownership(auth_client, other_client):
     r = auth_client.post("/projects/", json={"title": "Private Project"})
-    assert r.status_code == 200
+    assert r.status_code == 201
     project_id = r.json()["id"]
 
     r2 = other_client.get(f"/projects/{project_id}")
@@ -88,7 +88,7 @@ def test_project_ownership(auth_client, other_client):
 
 def test_create_project_seeds_default_composition(auth_client):
     r = auth_client.post("/projects/", json={"title": "Seeded Project", "source_url": "https://example.com"})
-    assert r.status_code == 200
+    assert r.status_code == 201
     project = r.json()
 
     r2 = auth_client.get(f"/compositions/{project['id']}")
@@ -121,11 +121,11 @@ def test_get_render_not_found(auth_client):
 
 def test_render_polling(auth_client):
     r = auth_client.post("/projects/", json={"title": "Render Poll Project"})
-    assert r.status_code == 200
+    assert r.status_code == 201
     project_id = r.json()["id"]
 
     r2 = auth_client.post(f"/projects/{project_id}/renders/generate")
-    assert r2.status_code == 200
+    assert r2.status_code == 202
     job_id = r2.json()["job_id"]
 
     r3 = auth_client.get(f"/projects/{project_id}/renders/{job_id}")
@@ -138,7 +138,7 @@ def test_render_polling(auth_client):
 
 def test_asset_upload_validation(auth_client):
     r = auth_client.post("/projects/", json={"title": "Asset Upload Project"})
-    assert r.status_code == 200
+    assert r.status_code == 201
     project_id = r.json()["id"]
 
     invalid = io.BytesIO(b"not an image")
@@ -160,7 +160,7 @@ def test_asset_upload_validation(auth_client):
         f"/projects/{project_id}/assets/",
         files={"file": ("logo.png", valid, "image/png")},
     )
-    assert r4.status_code == 200
+    assert r4.status_code == 201
     asset = r4.json()
     assert asset["type"] == "image"
     assert asset["original_url"] == "logo.png"

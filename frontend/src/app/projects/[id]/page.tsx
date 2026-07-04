@@ -118,12 +118,12 @@ export default function ProjectWorkspacePage() {
               {/* Center preview + downloads */}
               <div className="lg:col-span-2 flex flex-col gap-4">
                 <div className="flex-1 bg-black rounded-xl overflow-hidden">
-                  <PreviewPlayer videoUrl={job?.output_url ? `${process.env.NEXT_PUBLIC_API_URL}${job.output_url}` : undefined} />
+                  <PreviewPlayer videoUrl={job?.output_url || undefined} />
                 </div>
                 <div className="flex justify-end">
                   <DownloadButtons
-                    mp4Url={job?.output_url ? `${process.env.NEXT_PUBLIC_API_URL}${job.output_url}` : undefined}
-                    htmlUrl={job?.html_output_url ? `${process.env.NEXT_PUBLIC_API_URL}${job.html_output_url}` : undefined}
+                    mp4Url={job?.output_url || undefined}
+                    htmlUrl={job?.html_output_url || undefined}
                   />
                 </div>
               </div>

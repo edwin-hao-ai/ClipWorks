@@ -9,19 +9,51 @@ import { AssetUploader } from '@/components/assets/AssetUploader';
 import { AssetGrid } from '@/components/assets/AssetGrid';
 import { MediaAsset } from '@/lib/types';
 import { api } from '@/lib/api';
+import { Button } from '@/components/ui/Button';
 
 export default function AssetsPage() {
   const { id } = useParams<{ id: string }>();
   const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const data = await api.get(`/projects/${id}/assets/`);
-    setAssets(data);
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.get(`/projects/${id}/assets/`);
+      setAssets(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载素材失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     load();
   }, [id]);
+
+  if (loading) {
+    return (
+      <AuthGuard>
+        <div className="min-h-screen flex items-center justify-center">加载中…</div>
+      </AuthGuard>
+    );
+  }
+
+  if (error) {
+    return (
+      <AuthGuard>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => load()}>重试</Button>
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard>

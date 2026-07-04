@@ -13,9 +13,12 @@ def mock_render_task(job_id: str, project_id: str):
     db = SessionLocal()
     try:
         job = db.query(RenderJob).filter(RenderJob.id == job_id).first()
-        if job:
-            job.status = "running"
-            db.commit()
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not job or not project:
+            return
+        job.status = "running"
+        db.commit()
+        try:
             for i in range(1, 6):
                 time.sleep(1)
                 job.progress = i * 20
@@ -24,6 +27,13 @@ def mock_render_task(job_id: str, project_id: str):
             job.progress = 100
             job.output_url = "/api/static/sample.mp4"
             job.html_output_url = "/api/static/index.html"
+            project.status = "ready"
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            job.status = "failed"
+            job.error_message = str(exc)
+            project.status = "failed"
             db.commit()
     finally:
         db.close()
@@ -38,7 +48,7 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
     return project
 
 
-@router.post("/generate")
+@router.post("/generate", status_code=202)
 def generate_video(
     project_id: str,
     background_tasks: BackgroundTasks,
