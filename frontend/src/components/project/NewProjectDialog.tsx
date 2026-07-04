@@ -13,17 +13,27 @@ export function NewProjectDialog({ onCreated }: Props) {
   const [title, setTitle] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [sourceType, setSourceType] = useState<'url' | 'upload'>('url');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
-    await api.post('/projects/', {
-      title: title || '未命名项目',
-      source_url: sourceType === 'url' ? sourceUrl : undefined,
-      source_type: sourceType,
-    });
-    setOpen(false);
-    setTitle('');
-    setSourceUrl('');
-    onCreated();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.post('/projects/', {
+        title: title || '未命名项目',
+        source_url: sourceType === 'url' ? sourceUrl : undefined,
+        source_type: sourceType,
+      });
+      setOpen(false);
+      setTitle('');
+      setSourceUrl('');
+      onCreated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '创建项目失败');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -81,11 +91,18 @@ export function NewProjectDialog({ onCreated }: Props) {
                 </div>
               )}
             </div>
+            {error && (
+              <div className="mt-4 text-sm text-red-700 bg-red-50 rounded-lg px-4 py-3">
+                {error}
+              </div>
+            )}
             <div className="flex justify-end gap-3 mt-6">
-              <Button variant="ghost" onClick={() => setOpen(false)}>
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
                 取消
               </Button>
-              <Button onClick={submit}>创建</Button>
+              <Button onClick={submit} disabled={submitting}>
+                {submitting ? '创建中…' : '创建'}
+              </Button>
             </div>
           </div>
         </div>

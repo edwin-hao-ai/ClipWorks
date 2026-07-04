@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Clip } from '@/lib/types';
 
 interface Props {
@@ -13,7 +12,6 @@ interface Props {
 const PIXELS_PER_SECOND = 20;
 
 export function ClipBlock({ clip, onUpdate, onSelect, selected }: Props) {
-  const [resizing, setResizing] = useState(false);
   const left = clip.start_time * PIXELS_PER_SECOND;
   const width = Math.max(clip.duration * PIXELS_PER_SECOND, 4);
 
@@ -26,10 +24,6 @@ export function ClipBlock({ clip, onUpdate, onSelect, selected }: Props) {
       onClick={() => onSelect(clip)}
     >
       {clip.text_content || '片段'}
-      <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-e-resize"
-        onMouseDown={() => setResizing(true)}
-      />
     </div>
   );
 }

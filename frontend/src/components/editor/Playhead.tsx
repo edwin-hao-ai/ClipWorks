@@ -15,7 +15,8 @@ export function Playhead({ currentTime, duration, onSeek }: Props) {
       style={{ width: totalWidth }}
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
+        const scrollLeft = e.currentTarget.parentElement?.scrollLeft || 0;
+        const x = e.clientX - rect.left + scrollLeft;
         onSeek(Math.max(0, x / PIXELS_PER_SECOND));
       }}
     >

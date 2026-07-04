@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Project, RenderJob, Composition
+from app.models import Project, RenderJob, User
+from app.routers.auth import get_current_user
 import time
 
 router = APIRouter(prefix="/projects/{project_id}/renders", tags=["renders"])
@@ -28,11 +29,23 @@ def mock_render_task(job_id: str, project_id: str):
         db.close()
 
 
-@router.post("/generate")
-def generate_video(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def _require_project(project_id: str, user: User, db: Session) -> Project:
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
-        return {"error": "not found"}
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this project")
+    return project
+
+
+@router.post("/generate")
+def generate_video(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _require_project(project_id, user, db)
 
     project.status = "generating"
     db.commit()
@@ -48,10 +61,12 @@ def generate_video(project_id: str, background_tasks: BackgroundTasks, db: Sessi
 
 
 @router.get("/{job_id}")
-def get_render(job_id: str, db: Session = Depends(get_db)):
+def get_render(job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.query(RenderJob).filter(RenderJob.id == job_id).first()
     if not job:
-        return {"error": "not found"}
+        raise HTTPException(status_code=404, detail="Render job not found")
+    if job.project.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this project")
     return {
         "id": job.id,
         "status": job.status,

@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from app.routers import auth, projects, compositions, assets, renders
+from app.database import get_db, list_tables
 import os
 
 app = FastAPI(title="ClipWorks API", version="0.1.0")
@@ -30,5 +33,9 @@ def health():
 
 
 @app.get("/health/db")
-def health_db():
-    return {"status": "ok"}
+def health_db(db: Session = Depends(get_db)):
+    try:
+        tables = list_tables(connection=db.connection())
+        return {"status": "ok", "tables": tables}
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {exc}")

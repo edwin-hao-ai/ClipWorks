@@ -11,15 +11,25 @@ import { api } from '@/lib/api';
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
-    const data = await api.get('/projects/');
-    setProjects(data);
+    setError(null);
+    try {
+      const data = await api.get('/projects/');
+      setProjects(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载项目失败');
+    }
   };
 
   const deleteProject = async (id: string) => {
-    await api.delete(`/projects/${id}`);
-    load();
+    try {
+      await api.delete(`/projects/${id}`);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '删除项目失败');
+    }
   };
 
   useEffect(() => {
@@ -37,6 +47,11 @@ export default function ProjectsPage() {
               <h2 className="text-xl font-semibold text-slate-900">全部项目</h2>
               <NewProjectDialog onCreated={load} />
             </div>
+            {error && (
+              <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
+                {error}
+              </div>
+            )}
             {projects.length === 0 ? (
               <div className="text-center py-20 text-slate-500 bg-white rounded-xl border border-slate-200">
                 还没有项目，点击右上角「新建项目」开始

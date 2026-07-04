@@ -1,38 +1,30 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models import Project, Composition, User, Track, Clip
+from app.routers.auth import get_current_user
 from app.schemas import ProjectCreate, ProjectOut
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _get_or_create_demo_user(db: Session) -> User:
-    user = db.query(User).first()
-    if user:
-        return user
-    user = User(
-        email="demo@google.com",
-        name="Demo Google",
-        avatar_url="https://api.dicebear.com/7.x/avataaars/svg?seed=google",
-        provider="google",
-        provider_id="google_123",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+def _require_project(project_id: str, user: User, db: Session) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this project")
+    return project
 
 
 @router.get("/", response_model=List[ProjectOut])
-def list_projects(db: Session = Depends(get_db)):
-    return db.query(Project).order_by(Project.created_at.desc()).all()
+def list_projects(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Project).filter(Project.user_id == user.id).order_by(Project.created_at.desc()).all()
 
 
 @router.post("/", response_model=ProjectOut)
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
-    user = _get_or_create_demo_user(db)
+def create_project(payload: ProjectCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = Project(
         user_id=user.id,
         title=payload.title,
@@ -70,14 +62,13 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
-def get_project(project_id: str, db: Session = Depends(get_db)):
-    return db.query(Project).filter(Project.id == project_id).first()
+def get_project(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return _require_project(project_id, user, db)
 
 
 @router.delete("/{project_id}")
-def delete_project(project_id: str, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if project:
-        db.delete(project)
-        db.commit()
+def delete_project(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = _require_project(project_id, user, db)
+    db.delete(project)
+    db.commit()
     return {"deleted": True}

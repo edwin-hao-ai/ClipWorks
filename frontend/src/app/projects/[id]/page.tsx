@@ -19,19 +19,28 @@ export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const data = await api.get(`/projects/${id}`);
         if (!cancelled) {
           setProject(data);
+          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Failed to load project:', err);
+          setError(err instanceof Error ? err.message : '加载项目失败');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
     };
@@ -43,10 +52,23 @@ export default function ProjectWorkspacePage() {
     };
   }, [id]);
 
-  if (!project) {
+  if (loading) {
     return (
       <AuthGuard>
         <div className="min-h-screen flex items-center justify-center">加载中…</div>
+      </AuthGuard>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <AuthGuard>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <p className="text-red-600 mb-4">{error || '项目不存在'}</p>
+            <Button onClick={() => window.location.reload()}>重试</Button>
+          </div>
+        </div>
       </AuthGuard>
     );
   }

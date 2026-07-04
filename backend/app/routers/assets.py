@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import MediaAsset, Project
+from app.models import MediaAsset, Project, User
+from app.routers.auth import get_current_user
 import os
+import re
 import shutil
 
 router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"])
@@ -11,31 +13,100 @@ router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"])
 UPLOAD_DIR = "data/assets"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+ALLOWED_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".mp4",
+    ".mov",
+    ".webm",
+    ".mkv",
+    ".mp3",
+    ".wav",
+    ".aac",
+    ".ogg",
+    ".ttf",
+    ".otf",
+    ".woff",
+    ".woff2",
+}
+
+
+def _sanitize_filename(filename: str) -> str:
+    base = os.path.basename(filename).strip()
+    base = re.sub(r"[^a-zA-Z0-9._-]", "_", base)
+    return base or "upload"
+
+
+def _get_asset_type(ext: str) -> str:
+    ext_lower = ext.lower()
+    if ext_lower in {".mp4", ".mov", ".webm", ".mkv"}:
+        return "video"
+    if ext_lower in {".mp3", ".wav", ".aac", ".ogg"}:
+        return "audio"
+    if ext_lower in {".ttf", ".otf", ".woff", ".woff2"}:
+        return "font"
+    return "image"
+
+
+def _require_project(project_id: str, user: User, db: Session) -> Project:
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if project.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this project")
+    return project
+
 
 @router.get("/")
-def list_assets(project_id: str, db: Session = Depends(get_db)):
+def list_assets(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_project(project_id, user, db)
     return db.query(MediaAsset).filter(MediaAsset.project_id == project_id).all()
 
 
 @router.post("/")
-def upload_asset(project_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    ext = os.path.splitext(file.filename or "")[1]
+def upload_asset(
+    project_id: str,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_project(project_id, user, db)
+
+    filename = _sanitize_filename(file.filename or "")
+    ext = os.path.splitext(filename)[1].lower()
+    if not ext or ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File extension '{ext}' is not allowed",
+        )
+
+    # Determine file size without reading the whole stream into memory.
+    try:
+        file.file.seek(0, os.SEEK_END)
+        size = file.file.tell()
+        file.file.seek(0)
+    except Exception:
+        size = None
+
+    if size is not None and size > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File exceeds maximum size of 50 MB")
+
     asset_id = os.urandom(8).hex()
     local_path = os.path.join(UPLOAD_DIR, f"{asset_id}{ext}")
     with open(local_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    asset_type = "image"
-    if ext.lower() in [".mp4", ".mov", ".webm"]:
-        asset_type = "video"
-    elif ext.lower() in [".mp3", ".wav", ".aac"]:
-        asset_type = "audio"
-
     asset = MediaAsset(
         project_id=project_id,
-        type=asset_type,
+        type=_get_asset_type(ext),
         source="upload",
-        original_url=file.filename,
+        original_url=filename,
         local_path=local_path,
     )
     db.add(asset)

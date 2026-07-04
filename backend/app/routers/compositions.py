@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Composition, Track, Clip, MediaAsset
-from app.schemas import CompositionOut
+from app.models import Composition, Track, Clip, User
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/compositions", tags=["compositions"])
 
@@ -40,19 +40,24 @@ def build_composition_json(comp: Composition) -> dict:
     }
 
 
-@router.get("/{project_id}")
-def get_composition(project_id: str, db: Session = Depends(get_db)):
+def _require_composition(project_id: str, user: User, db: Session) -> Composition:
     comp = db.query(Composition).filter(Composition.project_id == project_id).first()
     if not comp:
-        return {"error": "not found"}
+        raise HTTPException(status_code=404, detail="Composition not found")
+    if comp.project.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this project")
+    return comp
+
+
+@router.get("/{project_id}")
+def get_composition(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    comp = _require_composition(project_id, user, db)
     return build_composition_json(comp)
 
 
 @router.put("/{project_id}")
-def update_composition(project_id: str, data: dict, db: Session = Depends(get_db)):
-    comp = db.query(Composition).filter(Composition.project_id == project_id).first()
-    if not comp:
-        return {"error": "not found"}
+def update_composition(project_id: str, data: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    comp = _require_composition(project_id, user, db)
     # Clear existing tracks and recreate from payload
     db.query(Track).filter(Track.composition_id == comp.id).delete()
     for t_data in data.get("tracks", []):
