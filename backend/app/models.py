@@ -37,10 +37,10 @@ class Project(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", back_populates="projects")
-    composition = relationship("Composition", uselist=False, back_populates="project")
-    assets = relationship("MediaAsset", back_populates="project")
-    render_jobs = relationship("RenderJob", back_populates="project")
-    scripts = relationship("Script", back_populates="project")
+    composition = relationship("Composition", uselist=False, back_populates="project", cascade="all, delete-orphan")
+    assets = relationship("MediaAsset", back_populates="project", cascade="all, delete-orphan")
+    render_jobs = relationship("RenderJob", back_populates="project", cascade="all, delete-orphan")
+    scripts = relationship("Script", back_populates="project", cascade="all, delete-orphan")
 
 
 class Composition(Base):
@@ -54,7 +54,7 @@ class Composition(Base):
     metadata_ = Column("metadata", JSON, default=dict)
 
     project = relationship("Project", back_populates="composition")
-    tracks = relationship("Track", back_populates="composition", order_by="Track.index")
+    tracks = relationship("Track", back_populates="composition", order_by="Track.index", cascade="all, delete-orphan")
 
 
 class Track(Base):
@@ -66,7 +66,7 @@ class Track(Base):
     name = Column(String)
 
     composition = relationship("Composition", back_populates="tracks")
-    clips = relationship("Clip", back_populates="track", order_by="Clip.start_time")
+    clips = relationship("Clip", back_populates="track", order_by="Clip.start_time", cascade="all, delete-orphan")
 
 
 class Clip(Base):
