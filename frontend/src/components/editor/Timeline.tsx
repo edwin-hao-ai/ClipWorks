@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Composition, Clip } from '@/lib/types';
 import { Playhead } from './Playhead';
 import { Track } from './Track';
+import { ZoomIn, ZoomOut, Clock } from 'lucide-react';
 
 interface Props {
   composition: Composition;
@@ -14,10 +15,23 @@ export function Timeline({ composition }: Props) {
   const [selectedClipId, setSelectedClipId] = useState<string>();
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-        <h3 className="font-semibold text-slate-900">时间线</h3>
-        <span className="text-xs text-slate-500">{currentTime.toFixed(1)}s / {composition.duration}s</span>
+    <div className="bg-background-surface border border-border-subtle rounded-md overflow-hidden flex flex-col">
+      <div className="px-4 py-3 border-b border-border-subtle flex justify-between items-center">
+        <h3 className="font-semibold text-content-primary">时间线</h3>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 text-xs text-content-tertiary bg-background-elevated rounded-md px-2 py-1">
+            <Clock className="w-3.5 h-3.5" />
+            <span className="font-mono">{currentTime.toFixed(1)}s / {composition.duration}s</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button className="p-1.5 rounded-md text-content-tertiary hover:bg-background-hover hover:text-content-primary transition-colors">
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button className="p-1.5 rounded-md text-content-tertiary hover:bg-background-hover hover:text-content-primary transition-colors">
+              <ZoomIn className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <Playhead

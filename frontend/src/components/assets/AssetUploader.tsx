@@ -39,10 +39,10 @@ export function AssetUploader({ projectId, onUploaded }: Props) {
         onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
       />
       <Button onClick={() => inputRef.current?.click()} disabled={uploading}>
-        <Upload className="w-4 h-4 mr-1" /> 上传素材
+        <Upload className="w-4 h-4 mr-1.5" /> 上传素材
       </Button>
       {error && (
-        <p className="mt-2 text-sm text-red-600">{error}</p>
+        <p className="mt-2 text-sm text-error">{error}</p>
       )}
     </div>
   );

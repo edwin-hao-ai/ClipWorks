@@ -15,16 +15,16 @@ export function Button({
   return (
     <button
       className={clsx(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors',
+        'inline-flex items-center justify-center rounded-md font-medium transition-all duration-150 ease-out disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50',
         {
-          'bg-brand-600 text-white hover:bg-brand-700': variant === 'primary',
-          'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50': variant === 'secondary',
-          'text-slate-600 hover:bg-slate-100': variant === 'ghost',
+          'bg-brand-600 text-content-inverse hover:bg-brand-500 hover:shadow-glow active:bg-brand-700': variant === 'primary',
+          'bg-background-elevated border border-border text-content-primary hover:bg-background-hover': variant === 'secondary',
+          'bg-transparent text-content-secondary hover:bg-background-hover hover:text-content-primary': variant === 'ghost',
         },
         {
           'px-3 py-1.5 text-sm': size === 'sm',
-          'px-4 py-2 text-sm': size === 'md',
-          'px-6 py-3 text-base': size === 'lg',
+          'px-4 py-2.5 text-sm': size === 'md',
+          'px-5 py-3 text-base': size === 'lg',
         },
         className
       )}

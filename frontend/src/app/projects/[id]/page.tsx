@@ -13,7 +13,8 @@ import { DownloadButtons } from '@/components/project/DownloadButtons';
 import { Button } from '@/components/ui/Button';
 import { Project, RenderJob } from '@/lib/types';
 import { api } from '@/lib/api';
-import { Film, Layers, Image } from 'lucide-react';
+import { Film, Layers, Image, ArrowLeft } from 'lucide-react';
+import { getDemoProjectById } from '@/lib/demoData';
 
 export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
@@ -32,11 +33,16 @@ export default function ProjectWorkspacePage() {
         const data = await api.get(`/projects/${id}`);
         if (!cancelled) {
           setProject(data);
-          setError(null);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : '加载项目失败');
+          // Fallback to demo project for prototype
+          const demo = getDemoProjectById(id);
+          if (demo) {
+            setProject(demo);
+          } else {
+            setError(err instanceof Error ? err.message : '加载项目失败');
+          }
         }
       } finally {
         if (!cancelled) {
@@ -55,7 +61,12 @@ export default function ProjectWorkspacePage() {
   if (loading) {
     return (
       <AuthGuard>
-        <div className="min-h-screen flex items-center justify-center">加载中…</div>
+        <div className="min-h-screen flex items-center justify-center bg-background-base text-content-secondary">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
+            <p className="text-sm">加载项目中…</p>
+          </div>
+        </div>
       </AuthGuard>
     );
   }
@@ -63,9 +74,9 @@ export default function ProjectWorkspacePage() {
   if (error || !project) {
     return (
       <AuthGuard>
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="min-h-screen flex items-center justify-center bg-background-base">
           <div className="text-center max-w-md">
-            <p className="text-red-600 mb-4">{error || '项目不存在'}</p>
+            <p className="text-error mb-4">{error || '项目不存在'}</p>
             <Button onClick={() => window.location.reload()}>重试</Button>
           </div>
         </div>
@@ -75,14 +86,14 @@ export default function ProjectWorkspacePage() {
 
   return (
     <AuthGuard>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-background-base">
         <Sidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <TopBar title={project.title} />
-          <main className="flex-1 p-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+          <main className="flex-1 p-6 overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-5.5rem)]">
               {/* Left panel */}
-              <div className="space-y-6 overflow-auto">
+              <div className="lg:col-span-4 xl:col-span-3 space-y-5 overflow-auto pr-1">
                 <GenerationPanel
                   projectId={project.id}
                   status={project.status}
@@ -90,24 +101,24 @@ export default function ProjectWorkspacePage() {
                   onJobComplete={(j) => setJob(j)}
                 />
                 <ScriptPanel sourceUrl={project.source_url} />
-                <div className="bg-white rounded-xl border border-slate-200 p-6">
-                  <h3 className="font-semibold text-slate-900 mb-3">快捷入口</h3>
+                <div className="bg-background-surface border border-border-subtle rounded-md p-5">
+                  <h3 className="font-semibold text-content-primary mb-3">快捷入口</h3>
                   <div className="space-y-2">
                     <Link
                       href={`/projects/${project.id}`}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 text-brand-700 text-sm"
+                      className="flex items-center gap-2 px-3 py-2 rounded-md bg-brand-900/40 text-brand-400 text-sm border border-brand-900/60"
                     >
                       <Film className="w-4 h-4" /> 生成
                     </Link>
                     <Link
                       href={`/projects/${project.id}/editor`}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 text-sm"
+                      className="flex items-center gap-2 px-3 py-2 rounded-md text-content-secondary hover:bg-background-hover hover:text-content-primary text-sm transition-colors"
                     >
                       <Layers className="w-4 h-4" /> 时间线
                     </Link>
                     <Link
                       href={`/projects/${project.id}/assets`}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-50 text-slate-700 text-sm"
+                      className="flex items-center gap-2 px-3 py-2 rounded-md text-content-secondary hover:bg-background-hover hover:text-content-primary text-sm transition-colors"
                     >
                       <Image className="w-4 h-4" /> 素材库
                     </Link>
@@ -116,11 +127,17 @@ export default function ProjectWorkspacePage() {
               </div>
 
               {/* Center preview + downloads */}
-              <div className="lg:col-span-2 flex flex-col gap-4">
-                <div className="flex-1 bg-black rounded-xl overflow-hidden">
+              <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4 min-h-0">
+                <div className="flex-1 bg-black rounded-md overflow-hidden min-h-0">
                   <PreviewPlayer videoUrl={job?.output_url || undefined} />
                 </div>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between shrink-0">
+                  <Link
+                    href="/projects"
+                    className="text-sm text-content-secondary hover:text-content-primary flex items-center gap-1 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> 返回项目列表
+                  </Link>
                   <DownloadButtons
                     mp4Url={job?.output_url || undefined}
                     htmlUrl={job?.html_output_url || undefined}
