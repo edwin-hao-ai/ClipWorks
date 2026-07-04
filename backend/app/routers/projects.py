@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models import Project, Composition, User
+from app.models import Project, Composition, User, Track, Clip
 from app.schemas import ProjectCreate, ProjectOut
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -55,6 +55,17 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
     )
     db.add(composition)
     db.commit()
+    db.refresh(composition)
+
+    text_track = Track(composition_id=composition.id, type='text', index=0, name='字幕')
+    video_track = Track(composition_id=composition.id, type='video', index=1, name='画面')
+    db.add_all([text_track, video_track])
+    db.flush()
+
+    db.add(Clip(track_id=video_track.id, start_time=0, duration=10, position={}))
+    db.add(Clip(track_id=text_track.id, start_time=1, duration=5, text_content='ClipWorks'))
+    db.commit()
+
     return project
 
 
