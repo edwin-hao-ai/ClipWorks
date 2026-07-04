@@ -53,3 +53,15 @@ export interface RenderJob {
   html_output_url?: string;
   error_message?: string;
 }
+
+export interface MediaAsset {
+  id: string;
+  project_id: string;
+  type: 'image' | 'video' | 'audio' | 'font' | 'generated';
+  source: 'upload' | 'pexels' | 'generated' | 'user_url';
+  original_url?: string;
+  local_path?: string;
+  thumbnail_url?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
