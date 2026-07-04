@@ -47,7 +47,7 @@ export default function ProjectWorkspacePage() {
                 <GenerationPanel
                   projectId={project.id}
                   status={project.status}
-                  onStatusChange={(s) => setProject({ ...project, status: s as any })}
+                  onStatusChange={(s) => setProject({ ...project, status: s })}
                 />
                 <ScriptPanel sourceUrl={project.source_url} />
                 <div className="bg-white rounded-xl border border-slate-200 p-6">
