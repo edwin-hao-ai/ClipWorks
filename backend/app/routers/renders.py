@@ -21,8 +21,8 @@ def mock_render_task(job_id: str, project_id: str):
                 db.commit()
             job.status = "completed"
             job.progress = 100
-            job.output_url = f"/api/static/{project_id}/output.mp4"
-            job.html_output_url = f"/api/static/{project_id}/index.html"
+            job.output_url = "/api/static/sample.mp4"
+            job.html_output_url = "/api/static/index.html"
             db.commit()
     finally:
         db.close()

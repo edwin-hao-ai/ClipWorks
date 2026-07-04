@@ -9,9 +9,10 @@ interface Props {
   projectId: string;
   status: Project['status'];
   onStatusChange: (status: Project['status']) => void;
+  onJobComplete?: (job: RenderJob) => void;
 }
 
-export function GenerationPanel({ projectId, status, onStatusChange }: Props) {
+export function GenerationPanel({ projectId, status, onStatusChange, onJobComplete }: Props) {
   const [job, setJob] = useState<RenderJob | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,9 @@ export function GenerationPanel({ projectId, status, onStatusChange }: Props) {
           setJob(j);
           if (j.status === 'completed' || j.status === 'failed') {
             onStatusChange(j.status === 'completed' ? 'ready' : 'failed');
+            if (j.status === 'completed') {
+              onJobComplete?.(j);
+            }
             if (j.status === 'failed') {
               setError(j.error_message || '生成失败，请重试');
             }

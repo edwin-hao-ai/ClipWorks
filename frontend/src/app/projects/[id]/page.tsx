@@ -8,14 +8,17 @@ import { TopBar } from '@/components/layout/TopBar';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { GenerationPanel } from '@/components/project/GenerationPanel';
 import { ScriptPanel } from '@/components/project/ScriptPanel';
+import { PreviewPlayer } from '@/components/project/PreviewPlayer';
+import { DownloadButtons } from '@/components/project/DownloadButtons';
 import { Button } from '@/components/ui/Button';
-import { Project } from '@/lib/types';
+import { Project, RenderJob } from '@/lib/types';
 import { api } from '@/lib/api';
 import { Film, Layers, Image } from 'lucide-react';
 
 export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
+  const [job, setJob] = useState<RenderJob | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +65,7 @@ export default function ProjectWorkspacePage() {
                   projectId={project.id}
                   status={project.status}
                   onStatusChange={(s) => setProject({ ...project, status: s })}
+                  onJobComplete={(j) => setJob(j)}
                 />
                 <ScriptPanel sourceUrl={project.source_url} />
                 <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -89,16 +93,16 @@ export default function ProjectWorkspacePage() {
                 </div>
               </div>
 
-              {/* Center preview placeholder */}
-              <div className="lg:col-span-2 bg-black rounded-xl flex items-center justify-center text-white">
-                <div className="text-center">
-                  <Film className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="opacity-70">视频预览区域</p>
-                  {project.status === 'ready' && (
-                    <Button variant="secondary" className="mt-4">
-                      播放预览
-                    </Button>
-                  )}
+              {/* Center preview + downloads */}
+              <div className="lg:col-span-2 flex flex-col gap-4">
+                <div className="flex-1 bg-black rounded-xl overflow-hidden">
+                  <PreviewPlayer videoUrl={job?.output_url ? `${process.env.NEXT_PUBLIC_API_URL}${job.output_url}` : undefined} />
+                </div>
+                <div className="flex justify-end">
+                  <DownloadButtons
+                    mp4Url={job?.output_url ? `${process.env.NEXT_PUBLIC_API_URL}${job.output_url}` : undefined}
+                    htmlUrl={job?.html_output_url ? `${process.env.NEXT_PUBLIC_API_URL}${job.html_output_url}` : undefined}
+                  />
                 </div>
               </div>
             </div>
