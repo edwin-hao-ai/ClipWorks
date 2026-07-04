@@ -17,13 +17,27 @@ export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
 
-  const load = async () => {
-    const data = await api.get(`/projects/${id}`);
-    setProject(data);
-  };
-
   useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const data = await api.get(`/projects/${id}`);
+        if (!cancelled) {
+          setProject(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load project:', err);
+        }
+      }
+    };
+
     load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!project) {

@@ -15,54 +15,63 @@ export function GenerationPanel({ projectId, status, onStatusChange }: Props) {
   const [job, setJob] = useState<RenderJob | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-  }, []);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
 
   const stopPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   };
 
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+      stopPolling();
+    };
+  }, []);
+
   const generate = async () => {
+    if (unmountedRef.current) return;
+    setJob(null);
     setLoading(true);
     setError(null);
     stopPolling();
 
     try {
       const data = await api.post(`/projects/${projectId}/renders/generate`);
-      const jobId = data.job_id;
+      const jobId: string = data.job_id;
+      if (unmountedRef.current) return;
       onStatusChange('generating');
 
-      pollRef.current = setInterval(async () => {
+      const poll = async () => {
+        if (unmountedRef.current) return;
         try {
           const j = await api.get(`/projects/${projectId}/renders/${jobId}`);
+          if (unmountedRef.current) return;
           setJob(j);
           if (j.status === 'completed' || j.status === 'failed') {
-            stopPolling();
             onStatusChange(j.status === 'completed' ? 'ready' : 'failed');
-            if (j.status === 'failed' && j.error_message) {
-              setError(j.error_message);
+            if (j.status === 'failed') {
+              setError(j.error_message || '生成失败，请重试');
             }
             setLoading(false);
+          } else {
+            timeoutRef.current = setTimeout(poll, 1000);
           }
         } catch (err) {
-          stopPolling();
+          if (unmountedRef.current) return;
           setLoading(false);
           setError(err instanceof Error ? err.message : '轮询任务状态失败');
           onStatusChange('failed');
         }
-      }, 1000);
+      };
+
+      timeoutRef.current = setTimeout(poll, 1000);
     } catch (err) {
+      if (unmountedRef.current) return;
       setLoading(false);
       setError(err instanceof Error ? err.message : '启动生成失败');
     }
@@ -85,14 +94,10 @@ export function GenerationPanel({ projectId, status, onStatusChange }: Props) {
             />
           </div>
         </div>
-      ) : status === 'failed' ? (
-        <div className="text-red-700 bg-red-50 px-4 py-3 rounded-lg text-sm mb-4">
-          生成失败，请重试
-        </div>
       ) : null}
-      {error && (
+      {(error || status === 'failed') && (
         <div className="text-red-700 bg-red-50 px-4 py-3 rounded-lg text-sm mb-4">
-          {error}
+          {error || '生成失败，请重试'}
         </div>
       )}
       <Button onClick={generate} disabled={loading || status === 'generating'} className="w-full">
