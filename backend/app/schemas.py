@@ -8,6 +8,7 @@ class UserOut(BaseModel):
     email: str
     name: Optional[str]
     avatar_url: Optional[str]
+    provider: Optional[str]
 
     class Config:
         from_attributes = True

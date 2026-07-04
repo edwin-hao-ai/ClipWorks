@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name?: string;
   avatar_url?: string;
+  provider?: string;
 }
 
 export interface Project {
