@@ -104,6 +104,22 @@ def test_create_project_seeds_default_composition(auth_client):
     assert any(c["duration"] == 10 for c in track_types["video"]["clips"])
 
 
+def test_update_composition_with_seeded_default_succeeds(auth_client):
+    r = auth_client.post("/projects/", json={"title": "Update Composition Project", "source_url": "https://example.com"})
+    assert r.status_code == 201
+    project_id = r.json()["id"]
+
+    r2 = auth_client.get(f"/compositions/{project_id}")
+    assert r2.status_code == 200
+    composition = r2.json()
+
+    r3 = auth_client.put(f"/compositions/{project_id}", json=composition)
+    assert r3.status_code == 200
+    updated = r3.json()
+    assert len(updated["tracks"]) == len(composition["tracks"])
+    assert all(len(t.get("clips", [])) > 0 for t in updated["tracks"])
+
+
 def test_get_composition_not_found(auth_client):
     r = auth_client.get("/compositions/does-not-exist")
     assert r.status_code == 404

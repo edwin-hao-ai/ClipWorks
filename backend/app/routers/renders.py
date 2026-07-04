@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 from app.database import get_db
 from app.models import Project, RenderJob, User
 from app.routers.auth import get_current_user
@@ -25,6 +26,7 @@ def mock_render_task(job_id: str, project_id: str):
                 db.commit()
             job.status = "completed"
             job.progress = 100
+            job.completed_at = datetime.utcnow()
             job.output_url = "/api/static/sample.mp4"
             job.html_output_url = "/api/static/index.html"
             project.status = "ready"

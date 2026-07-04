@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.routers import auth, projects, compositions, assets, renders
 from app.database import get_db, list_tables
 import os
+import shutil
 
 app = FastAPI(title="ClipWorks API", version="0.1.0")
 
@@ -18,6 +19,14 @@ app.add_middleware(
 )
 
 os.makedirs("data/assets", exist_ok=True)
+
+# Copy bundled seed assets into the runtime static directory so that the
+# placeholder video / poster / rendered index.html are available even though
+# data/ is gitignored.
+_seed_assets_dir = os.path.join(os.path.dirname(__file__), "..", "seed_assets")
+if os.path.isdir(_seed_assets_dir):
+    shutil.copytree(_seed_assets_dir, "data/assets", dirs_exist_ok=True)
+
 app.mount("/api/static", StaticFiles(directory="data/assets"), name="static")
 
 app.include_router(auth.router)

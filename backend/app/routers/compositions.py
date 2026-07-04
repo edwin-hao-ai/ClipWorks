@@ -58,8 +58,11 @@ def get_composition(project_id: str, user: User = Depends(get_current_user), db:
 @router.put("/{project_id}")
 def update_composition(project_id: str, data: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     comp = _require_composition(project_id, user, db)
-    # Clear existing tracks and recreate from payload
-    db.query(Track).filter(Track.composition_id == comp.id).delete()
+    # Clear existing tracks and recreate from payload. Use ORM deletes so the
+    # cascade="all, delete-orphan" on Track.clips is honored.
+    for track in comp.tracks:
+        db.delete(track)
+    db.flush()
     for t_data in data.get("tracks", []):
         track = Track(
             composition_id=comp.id,
