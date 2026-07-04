@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from app.routers import auth, projects, compositions, assets, renders
+from app.routers import auth, projects, compositions, assets, renders, agent
 from app.database import get_db, list_tables
+from app import config  # loads .env at startup
 import os
 import shutil
 
@@ -34,6 +35,7 @@ app.include_router(projects.router)
 app.include_router(compositions.router)
 app.include_router(assets.router)
 app.include_router(renders.router)
+app.include_router(agent.router)
 
 
 @app.get("/health")

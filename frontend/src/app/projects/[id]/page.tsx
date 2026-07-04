@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { GenerationPanel } from '@/components/project/GenerationPanel';
+import { AgentChat } from '@/components/project/AgentChat';
 import { ScriptPanel } from '@/components/project/ScriptPanel';
 import { PreviewPlayer } from '@/components/project/PreviewPlayer';
 import { DownloadButtons } from '@/components/project/DownloadButtons';
@@ -99,6 +100,11 @@ export default function ProjectWorkspacePage() {
                   status={project.status}
                   onStatusChange={(s) => setProject({ ...project, status: s })}
                   onJobComplete={(j) => setJob(j)}
+                />
+                <AgentChat
+                  projectId={project.id}
+                  status={project.status}
+                  onStatusChange={(s) => setProject({ ...project, status: s })}
                 />
                 <ScriptPanel sourceUrl={project.source_url} />
                 <div className="bg-background-surface border border-border-subtle rounded-md p-5">

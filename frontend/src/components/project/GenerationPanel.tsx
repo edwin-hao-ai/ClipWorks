@@ -17,6 +17,7 @@ export function GenerationPanel({ projectId, status, onStatusChange, onJobComple
   const [job, setJob] = useState<RenderJob | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prompt, setPrompt] = useState('');
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
 
@@ -35,6 +36,30 @@ export function GenerationPanel({ projectId, status, onStatusChange, onJobComple
     };
   }, []);
 
+  const pollJob = async (jobId: string) => {
+    if (unmountedRef.current) return;
+    try {
+      const j = await api.get(`/projects/${projectId}/renders/${jobId}`);
+      if (unmountedRef.current) return;
+      setJob(j);
+      if (j.status === 'completed' || j.status === 'failed') {
+        onStatusChange(j.status === 'completed' ? 'ready' : 'failed');
+        if (j.status === 'completed') {
+          onJobComplete?.(j);
+        }
+        if (j.status === 'failed') {
+          setError(j.error_message || '生成失败，请重试');
+        }
+        setLoading(false);
+      } else {
+        timeoutRef.current = setTimeout(() => pollJob(jobId), 1000);
+      }
+    } catch (err) {
+      if (unmountedRef.current) return;
+      simulateDemoGeneration();
+    }
+  };
+
   const generate = async () => {
     if (unmountedRef.current) return;
     setJob(null);
@@ -43,40 +68,15 @@ export function GenerationPanel({ projectId, status, onStatusChange, onJobComple
     stopPolling();
 
     try {
-      const data = await api.post(`/projects/${projectId}/renders/generate`);
+      const data = prompt.trim()
+        ? await api.post(`/projects/${projectId}/renders/agent-generate`, { prompt })
+        : await api.post(`/projects/${projectId}/renders/generate`);
       const jobId: string = data.job_id;
       if (unmountedRef.current) return;
       onStatusChange('generating');
-
-      const poll = async () => {
-        if (unmountedRef.current) return;
-        try {
-          const j = await api.get(`/projects/${projectId}/renders/${jobId}`);
-          if (unmountedRef.current) return;
-          setJob(j);
-          if (j.status === 'completed' || j.status === 'failed') {
-            onStatusChange(j.status === 'completed' ? 'ready' : 'failed');
-            if (j.status === 'completed') {
-              onJobComplete?.(j);
-            }
-            if (j.status === 'failed') {
-              setError(j.error_message || '生成失败，请重试');
-            }
-            setLoading(false);
-          } else {
-            timeoutRef.current = setTimeout(poll, 1000);
-          }
-        } catch (err) {
-          if (unmountedRef.current) return;
-          // Demo fallback: simulate progress to completion
-          simulateDemoGeneration();
-        }
-      };
-
-      timeoutRef.current = setTimeout(poll, 1000);
+      timeoutRef.current = setTimeout(() => pollJob(jobId), 1000);
     } catch (err) {
       if (unmountedRef.current) return;
-      // Demo fallback: simulate progress to completion
       simulateDemoGeneration();
     }
   };
@@ -138,6 +138,19 @@ export function GenerationPanel({ projectId, status, onStatusChange, onJobComple
           {error || '生成失败，请重试'}
         </div>
       )}
+      <div className="space-y-3 mb-4">
+        <label className="block text-xs text-content-secondary">
+          生成提示（可选）
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="例如：更活泼一点、针对年轻人…"
+            disabled={loading || status === 'generating'}
+            className="mt-1 w-full bg-background-elevated border border-border-subtle rounded-md px-3 py-2 text-sm text-content-primary placeholder-content-tertiary focus:outline-none focus:border-brand-500 disabled:opacity-50"
+          />
+        </label>
+      </div>
       <Button
         onClick={generate}
         disabled={loading || status === 'generating'}

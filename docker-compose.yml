@@ -18,6 +18,8 @@ services:
 
   backend:
     build: ./backend
+    env_file:
+      - ./backend/.env
     environment:
       DATABASE_URL: postgresql+psycopg2://clipworks:clipworks@postgres:5432/clipworks
       REDIS_URL: redis://redis:6379/0
