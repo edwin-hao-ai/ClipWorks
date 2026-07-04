@@ -1,6 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional
 
 
 class UserOut(BaseModel):
@@ -40,10 +40,9 @@ class CompositionOut(BaseModel):
     height: int
     duration: int
     fps: int
-    metadata: dict
+    metadata: dict = Field(alias="metadata_")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class RenderJobOut(BaseModel):

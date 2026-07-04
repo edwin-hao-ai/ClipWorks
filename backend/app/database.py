@@ -17,5 +17,7 @@ def get_db():
         db.close()
 
 
-def list_tables():
+def list_tables(connection=None):
+    if connection is not None:
+        return inspect(connection).get_table_names()
     return inspect(engine).get_table_names()

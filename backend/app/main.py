@@ -19,4 +19,4 @@ def health():
 
 @app.get("/health/db")
 def health_db(db: Session = Depends(get_db)):
-    return {"status": "ok", "tables": list_tables()}
+    return {"status": "ok", "tables": list_tables(db.connection())}
