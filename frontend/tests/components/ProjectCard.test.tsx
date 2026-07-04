@@ -23,7 +23,7 @@ describe('ProjectCard', () => {
   it('calls onDelete when delete button clicked', () => {
     const onDelete = vi.fn();
     render(<ProjectCard project={mockProject} onDelete={onDelete} />);
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
     expect(onDelete).toHaveBeenCalledWith('p1');
   });
 });

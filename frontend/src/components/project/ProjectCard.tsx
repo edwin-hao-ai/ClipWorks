@@ -23,6 +23,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
         </Link>
         <button
           onClick={() => onDelete(project.id)}
+          aria-label="Delete"
           className="text-slate-400 hover:text-red-500"
         >
           <Trash2 className="w-4 h-4" />
