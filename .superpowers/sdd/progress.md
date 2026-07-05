@@ -42,4 +42,6 @@
 - Task 6: complete (commits 1505e86..0de3469, review clean after fixes)
 - Task 7: complete (commits d64473d..afe460b, review clean after fixes)
 - Task 8: complete (commits f01c27d..959abff, review clean)
-- Task 9: pending — Update documentation and progress ledger
+- Task 9: complete — Update documentation and progress ledger
+
+- HyperFrames / Node.js / Remotion / video-use multi-engine rendering: complete
