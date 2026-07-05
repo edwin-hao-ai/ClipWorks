@@ -1,6 +1,9 @@
 import pytest
+from fastapi import HTTPException
+from unittest.mock import MagicMock
+
 from app.agent.modifier import modify_video
-from app.routers.agent import AgentChatPayload
+from app.routers.agent import AgentChatPayload, _persist_composition
 
 
 def test_modify_video_returns_reply_and_composition():
@@ -66,3 +69,28 @@ def test_agent_chat_payload_with_optional_fields():
     payload = AgentChatPayload(message="hello", scene_id="scene-1", render=False)
     assert payload.scene_id == "scene-1"
     assert payload.render is False
+
+
+@pytest.mark.parametrize("invalid", [{}, {"tracks": []}, {"tracks": "not-a-list"}])
+def test_persist_composition_rejects_invalid_tracks(invalid):
+    project = MagicMock()
+    db = MagicMock()
+    with pytest.raises(HTTPException) as exc_info:
+        _persist_composition(project, invalid, db)
+    assert exc_info.value.status_code == 422
+    db.delete.assert_not_called()
+    db.flush.assert_not_called()
+    db.commit.assert_not_called()
+
+
+def test_persist_composition_preserves_existing_tracks_for_empty_list():
+    project = MagicMock()
+    project.composition.tracks = [MagicMock(), MagicMock()]
+    db = MagicMock()
+    with pytest.raises(HTTPException) as exc_info:
+        _persist_composition(project, {"tracks": []}, db)
+    assert exc_info.value.status_code == 422
+    db.delete.assert_not_called()
+    db.commit.assert_not_called()
+    # Original tracks should still be present on the mocked project.
+    assert len(project.composition.tracks) == 2

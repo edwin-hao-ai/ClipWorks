@@ -80,6 +80,10 @@ export default function ProjectWorkspacePage() {
   );
   const canGenerate = Boolean(project?.source_url && hasComposition);
 
+  const previewFormat = (
+    ['16:9', '9:16', '1:1'].includes(project?.target_format || '') ? project?.target_format : '16:9'
+  ) as '16:9' | '9:16' | '1:1';
+
   const handlePropertyChange = async (changes: Partial<Project> | Partial<Scene>) => {
     if (!project) return;
     if ('target_format' in changes && changes.target_format) {
@@ -190,7 +194,7 @@ export default function ProjectWorkspacePage() {
                       )}
                     </Button>
                     {!canGenerate && (
-                      <p className="text-xs text-text-tertiary text-center">
+                      <p className="text-xs text-content-tertiary text-center">
                         请设置素材来源并确保项目已有合成内容
                       </p>
                     )}
@@ -215,7 +219,7 @@ export default function ProjectWorkspacePage() {
               {/* Center: Preview + Pipeline */}
               <div className="lg:col-span-6 flex flex-col gap-4 min-h-0 min-h-[360px]">
                 <div className="flex-1 bg-black rounded-lg overflow-hidden min-h-0">
-                  <PreviewPlayer videoUrl={project.latest_output_url} />
+                  <PreviewPlayer videoUrl={project.latest_output_url} format={previewFormat} />
                 </div>
                 {project.status === 'generating' && (
                   <div className="bg-background-surface border border-border-subtle rounded-lg p-4">

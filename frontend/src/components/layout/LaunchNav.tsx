@@ -12,7 +12,7 @@ export function LaunchNav() {
         </div>
         <span className="font-bold text-content-primary">ClipWorks</span>
       </div>
-      <div className="flex items-center gap-6 text-sm text-text-secondary">
+      <div className="flex items-center gap-6 text-sm text-content-secondary">
         <Link href="/" className="text-content-primary hover:text-brand-400 transition-colors">创作</Link>
         <Link href="/projects" className="hover:text-content-primary transition-colors">项目库</Link>
         <Link href="/projects/demo/assets" className="hover:text-content-primary transition-colors">素材库</Link>

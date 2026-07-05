@@ -33,10 +33,13 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
 
 def _persist_composition(project, comp_json, db):
     from app.models import Track as TrackModel, Clip as ClipModel
+    tracks = comp_json.get("tracks")
+    if not isinstance(tracks, list) or len(tracks) == 0:
+        raise HTTPException(status_code=422, detail="Agent returned composition without valid tracks")
     for track in project.composition.tracks:
         db.delete(track)
     db.flush()
-    for t_data in comp_json.get("tracks", []):
+    for t_data in tracks:
         track = TrackModel(
             composition_id=project.composition.id,
             type=t_data["type"],

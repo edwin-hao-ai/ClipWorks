@@ -57,7 +57,7 @@ export default function HomePage() {
           <h1 className="text-4xl md:text-5xl font-bold mb-5 tracking-tight">
             一句话，一段素材，一条成片
           </h1>
-          <p className="text-text-secondary text-lg mb-10">
+          <p className="text-content-secondary text-lg mb-10">
             告诉 AI 你想做什么视频，它会自动规划、剪辑、出片。
           </p>
 
@@ -68,7 +68,7 @@ export default function HomePage() {
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="例如：帮我做一个 30 秒的产品介绍视频，风格活泼，面向年轻人…"
-                className="flex-1 bg-transparent px-4 py-3 text-base outline-none placeholder-text-tertiary text-left"
+                className="flex-1 bg-transparent px-4 py-3 text-base outline-none placeholder-content-tertiary text-left"
                 disabled={loading}
               />
               <Button
@@ -99,13 +99,13 @@ export default function HomePage() {
           )}
 
           <div className="flex flex-wrap justify-center gap-2 mb-16">
-            <span className="text-sm text-text-tertiary py-1.5">热门：</span>
+            <span className="text-sm text-content-tertiary py-1.5">热门：</span>
             {QUICK_PROMPTS.map((p) => (
               <button
                 key={p}
                 onClick={() => createProject(p)}
                 disabled={loading}
-                className="px-3 py-1.5 rounded-full bg-background-elevated border border-border-subtle text-sm text-text-secondary hover:border-brand-500/50 hover:text-brand-400 transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 rounded-full bg-background-elevated border border-border-subtle text-sm text-content-secondary hover:border-brand-500/50 hover:text-brand-400 transition-colors disabled:opacity-50"
               >
                 {p}
               </button>
@@ -128,7 +128,7 @@ function RecentProjects() {
 
   return (
     <div className="text-left">
-      <div className="text-sm text-text-secondary mb-3 px-1">最近项目</div>
+      <div className="text-sm text-content-secondary mb-3 px-1">最近项目</div>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {projects.map((p) => (
           <a
@@ -139,7 +139,7 @@ function RecentProjects() {
             <div className={clsx('aspect-video rounded-md bg-gradient-to-br mb-2', p.gradient)} />
             <div className="text-sm font-medium text-content-primary truncate">{p.title}</div>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-text-tertiary">{p.time}</span>
+              <span className="text-xs text-content-tertiary">{p.time}</span>
               <span className="text-xs text-success">{p.status}</span>
             </div>
           </a>
