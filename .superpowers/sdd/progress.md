@@ -17,3 +17,9 @@
 - Task 8: complete (commits 8e8429f..a96c819, review clean after fix)
 - Task 9: complete (commits a96c819..b37b613, review clean after fixes)
 - Task 10: complete (review clean after fixes)
+
+## Minor findings recorded during Task 10 review
+
+- Report wording: `eslint-config-next` is declared with a caret range (`^14.2.35`), not strictly pinned; report should be corrected.
+- Report wording: `ClipBlock` removed `onUpdate` from the prop interface, not just from destructuring; report should be corrected.
+- Lockfile consistency: `frontend/package-lock.json` mixes `registry.npmjs.org` and `registry.npmmirror.com` resolutions; consider regenerating with a single registry before merge.
