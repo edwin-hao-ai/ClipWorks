@@ -23,3 +23,23 @@
 - Report wording: `eslint-config-next` is declared with a caret range (`^14.2.35`), not strictly pinned; report should be corrected.
 - Report wording: `ClipBlock` removed `onUpdate` from the prop interface, not just from destructuring; report should be corrected.
 - Lockfile consistency: `frontend/package-lock.json` mixes `registry.npmjs.org` and `registry.npmmirror.com` resolutions; consider regenerating with a single registry before merge.
+
+---
+
+# Multi-Engine Real MP4 Rendering Progress
+
+## Baseline
+- Branch: main
+- Baseline commit: ed25b72
+- Plan: docs/superpowers/plans/2026-07-05-multi-engine-render.md
+
+## Tasks
+- Task 1: pending — Scaffold the renderer service
+- Task 2: pending — HyperFrames render endpoint in renderer service
+- Task 3: pending — Backend RenderProvider interface + HyperFramesProvider
+- Task 4: pending — EngineSelector and RenderService fallback chain
+- Task 5: pending — Remotion renderer endpoint and provider
+- Task 6: pending — video-use renderer endpoint and provider
+- Task 7: pending — Wire renderer service into Docker Compose
+- Task 8: pending — Final integration and full test run
+- Task 9: pending — Update documentation and progress ledger
