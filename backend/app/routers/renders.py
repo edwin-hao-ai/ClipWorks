@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Optional
 
@@ -93,6 +94,8 @@ def _maybe_plan_and_persist(project: Project, prompt: Optional[str], db: Session
 
 def _build_assets(project: Project, db: Session) -> dict:
     """Scrape the project's source URL and resolve the first image asset."""
+    from app.config import ASSETS_DIR
+
     assets = {}
     if not project.source_url:
         return assets
@@ -101,9 +104,11 @@ def _build_assets(project: Project, db: Session) -> dict:
     if scraped.get("images"):
         first_image = scraped["images"][0]
         asset_data = resolve_image_asset(first_image, project.id, db)
-        if asset_data.get("local_path"):
+        local_path = asset_data.get("local_path")
+        if local_path:
             persist_asset(project.id, asset_data, db)
-            assets["background_image"] = "/" + asset_data["local_path"]
+            rel = os.path.relpath(local_path, ASSETS_DIR).replace(os.path.sep, "/")
+            assets["background_image"] = f"/api/static/{rel}"
     assets["scraped"] = scraped
     return assets
 
