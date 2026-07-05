@@ -13,6 +13,7 @@ import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
 import { Project, RenderJob, Scene } from '@/lib/types';
 import { api } from '@/lib/api';
+import { Sparkles } from 'lucide-react';
 import { getDemoProjectById } from '@/lib/demoData';
 
 const PIPELINE_STEPS = [
@@ -108,6 +109,18 @@ export default function ProjectWorkspacePage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-3.5rem-2.5rem)]">
               {/* Left: Agent + Scenes */}
               <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+                {project.status === 'draft' && (
+                  <button
+                    onClick={async () => {
+                      await api.post(`/projects/${project.id}/renders/agent-generate`, { prompt: project.title });
+                      setProject({ ...project, status: 'generating' });
+                    }}
+                    className="w-full bg-brand-600 hover:bg-brand-500 text-white py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    开始生成视频
+                  </button>
+                )}
                 <AgentChat
                   projectId={project.id}
                   status={project.status}
