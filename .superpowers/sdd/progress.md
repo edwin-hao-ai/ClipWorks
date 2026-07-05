@@ -34,7 +34,7 @@
 - Plan: docs/superpowers/plans/2026-07-05-multi-engine-render.md
 
 ## Tasks
-- Task 1: pending — Scaffold the renderer service
+- Task 1: complete (commits 1385260..d6dea45, review clean)
 - Task 2: pending — HyperFrames render endpoint in renderer service
 - Task 3: pending — Backend RenderProvider interface + HyperFramesProvider
 - Task 4: pending — EngineSelector and RenderService fallback chain
