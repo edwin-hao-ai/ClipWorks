@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import os
-import shutil
 import time
 from datetime import datetime
 from typing import Optional
@@ -9,8 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
-from app.agent import plan_video, build_composition, generate_html
-from app.config import ASSETS_DIR
+from app.agent import plan_video, build_composition
 from app.database import get_db, SessionLocal
 from app.models import Project, RenderJob, User
 from app.rendering.provider import RenderRequest
@@ -47,16 +44,6 @@ def _is_default_seeded_composition(comp: dict) -> bool:
                 if c.get("text_content") == "ClipWorks":
                     return True
     return False
-
-
-def _write_project_files(project_id: str, html: str) -> tuple[str, str]:
-    project_dir = os.path.join(ASSETS_DIR, project_id)
-    os.makedirs(project_dir, exist_ok=True)
-    html_path = os.path.join(project_dir, "index.html")
-    output_path = os.path.join(project_dir, "output.mp4")
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html)
-    return html_path, output_path
 
 
 def _mock_render(job: RenderJob, project: Project, db: Session):
@@ -136,15 +123,6 @@ async def _agent_render(job: RenderJob, project: Project, db: Session, prompt: O
                     assets["background_image"] = "/" + asset_data["local_path"]
                 assets["scraped"] = scraped
 
-        html = generate_html(comp_json, assets)
-        html_path, output_path = _write_project_files(project.id, html)
-
-        # Update job with HTML output immediately so the user can preview it
-        relative_html = f"/api/static/{project.id}/index.html"
-        job.html_output_url = relative_html
-        job.html_output_path = html_path
-        db.commit()
-
         request = RenderRequest(
             composition=comp_json,
             assets=assets,
@@ -155,7 +133,7 @@ async def _agent_render(job: RenderJob, project: Project, db: Session, prompt: O
         if result.success:
             job.output_url = result.output_url
             job.html_output_url = result.html_output_url
-            job.output_path = output_path
+            job.output_path = None
             job.status = "completed"
             job.progress = 100
             job.completed_at = datetime.utcnow()
