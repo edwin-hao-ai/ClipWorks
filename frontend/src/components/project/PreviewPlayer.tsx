@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Play, Pause, Film } from 'lucide-react';
+import { clsx } from 'clsx';
 
 interface PreviewPlayerProps {
   videoUrl?: string;
@@ -45,7 +46,7 @@ export function PreviewPlayer({ videoUrl, format = '16:9' }: PreviewPlayerProps)
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-black relative">
-      <div className={`relative ${FORMAT_RATIO[format] || 'aspect-video'} max-h-full max-w-full`}>
+      <div className={clsx('relative max-h-full max-w-full', FORMAT_RATIO[format] || 'aspect-video')}>
         <video
           ref={videoRef}
           src={videoUrl}
