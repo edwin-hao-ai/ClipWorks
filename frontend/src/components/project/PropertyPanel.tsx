@@ -1,6 +1,7 @@
 'use client';
 
 import { Project, Scene } from '@/lib/types';
+import { clsx } from 'clsx';
 import { Type, Clock, Monitor, Image, Music } from 'lucide-react';
 
 interface PropertyPanelProps {
@@ -62,11 +63,12 @@ export function PropertyPanel({ project, selectedScene }: PropertyPanelProps) {
               {['16:9', '9:16', '1:1'].map((ratio) => (
                 <button
                   key={ratio}
-                  className={`flex-1 py-1.5 rounded-md text-xs border transition-colors ${
+                  className={clsx(
+                    'flex-1 py-1.5 rounded-md text-xs border transition-colors',
                     project.target_format === ratio
                       ? 'bg-brand-900/50 text-brand-400 border-brand-900/60'
                       : 'bg-background-elevated text-content-secondary border-border-subtle hover:border-border-default'
-                  }`}
+                  )}
                 >
                   {ratio}
                 </button>
