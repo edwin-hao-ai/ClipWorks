@@ -2,31 +2,39 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AuthGuard } from '@/components/layout/AuthGuard';
-import { GenerationPanel } from '@/components/project/GenerationPanel';
 import { AgentChat } from '@/components/project/AgentChat';
-import { ScriptPanel } from '@/components/project/ScriptPanel';
+import { SceneCards } from '@/components/project/SceneCards';
 import { PreviewPlayer } from '@/components/project/PreviewPlayer';
-import { DownloadButtons } from '@/components/project/DownloadButtons';
+import { PropertyPanel } from '@/components/project/PropertyPanel';
+import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
-import { Project, RenderJob } from '@/lib/types';
+import { Project, RenderJob, Scene } from '@/lib/types';
 import { api } from '@/lib/api';
-import { Film, Layers, Image, ArrowLeft } from 'lucide-react';
 import { getDemoProjectById } from '@/lib/demoData';
+
+const PIPELINE_STEPS = [
+  { id: 'understand', label: '理解需求' },
+  { id: 'analyze', label: '分析素材' },
+  { id: 'script', label: '编写脚本' },
+  { id: 'scenes', label: '生成场景' },
+  { id: 'render', label: '渲染成片' },
+  { id: 'output', label: '输出成片' },
+];
 
 export default function ProjectWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<Project | null>(null);
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-
     const load = async () => {
       setLoading(true);
       setError(null);
@@ -34,29 +42,22 @@ export default function ProjectWorkspacePage() {
         const data = await api.get(`/projects/${id}`);
         if (!cancelled) {
           setProject(data);
+          if (data.composition?.metadata?.scenes) {
+            setScenes(data.composition.metadata.scenes);
+          }
         }
       } catch (err) {
         if (!cancelled) {
-          // Fallback to demo project for prototype
           const demo = getDemoProjectById(id);
-          if (demo) {
-            setProject(demo);
-          } else {
-            setError(err instanceof Error ? err.message : '加载项目失败');
-          }
+          if (demo) setProject(demo);
+          else setError(err instanceof Error ? err.message : '加载项目失败');
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
-
     load();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
   if (loading) {
@@ -85,70 +86,62 @@ export default function ProjectWorkspacePage() {
     );
   }
 
+  const currentStepIndex = project.status === 'draft' ? -1 : project.status === 'generating' ? 3 : 5;
+
   return (
     <AuthGuard>
       <div className="flex min-h-screen bg-background-base">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <TopBar title={project.title} />
-          <main className="flex-1 p-6 overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-5.5rem)]">
-              {/* Left panel */}
-              <div className="lg:col-span-4 xl:col-span-3 space-y-5 overflow-auto pr-1">
-                <GenerationPanel
-                  projectId={project.id}
-                  status={project.status}
-                  onStatusChange={(s) => setProject({ ...project, status: s })}
-                  onJobComplete={(j) => setJob(j)}
-                />
+          <TopBar
+            title={project.title}
+            showBack
+            backHref="/projects"
+            right={
+              <>
+                <Button variant="secondary" size="sm">导出 HTML</Button>
+                <Button size="sm">导出 MP4</Button>
+              </>
+            }
+          />
+          <main className="flex-1 p-5 overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-3.5rem-2.5rem)]">
+              {/* Left: Agent + Scenes */}
+              <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
                 <AgentChat
                   projectId={project.id}
                   status={project.status}
                   onStatusChange={(s) => setProject({ ...project, status: s })}
                 />
-                <ScriptPanel sourceUrl={project.source_url} />
-                <div className="bg-background-surface border border-border-subtle rounded-md p-5">
-                  <h3 className="font-semibold text-content-primary mb-3">快捷入口</h3>
-                  <div className="space-y-2">
-                    <Link
-                      href={`/projects/${project.id}`}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md bg-brand-900/40 text-brand-400 text-sm border border-brand-900/60"
-                    >
-                      <Film className="w-4 h-4" /> 生成
-                    </Link>
-                    <Link
-                      href={`/projects/${project.id}/editor`}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md text-content-secondary hover:bg-background-hover hover:text-content-primary text-sm transition-colors"
-                    >
-                      <Layers className="w-4 h-4" /> 时间线
-                    </Link>
-                    <Link
-                      href={`/projects/${project.id}/assets`}
-                      className="flex items-center gap-2 px-3 py-2 rounded-md text-content-secondary hover:bg-background-hover hover:text-content-primary text-sm transition-colors"
-                    >
-                      <Image className="w-4 h-4" /> 素材库
-                    </Link>
-                  </div>
-                </div>
+                <SceneCards
+                  scenes={scenes}
+                  selectedId={selectedSceneId}
+                  onSelect={setSelectedSceneId}
+                />
               </div>
 
-              {/* Center preview + downloads */}
-              <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4 min-h-0">
-                <div className="flex-1 bg-black rounded-md overflow-hidden min-h-0">
-                  <PreviewPlayer videoUrl={job?.output_url || undefined} />
+              {/* Center: Preview + Pipeline */}
+              <div className="lg:col-span-6 flex flex-col gap-4 min-h-0">
+                <div className="flex-1 bg-black rounded-lg overflow-hidden min-h-0">
+                  <PreviewPlayer videoUrl={job?.output_url || project.latest_output_url} />
                 </div>
-                <div className="flex items-center justify-between shrink-0">
-                  <Link
-                    href="/projects"
-                    className="text-sm text-content-secondary hover:text-content-primary flex items-center gap-1 transition-colors"
-                  >
-                    <ArrowLeft className="w-4 h-4" /> 返回项目列表
-                  </Link>
-                  <DownloadButtons
-                    mp4Url={job?.output_url || undefined}
-                    htmlUrl={job?.html_output_url || undefined}
-                  />
-                </div>
+                {project.status === 'generating' && (
+                  <div className="bg-background-surface border border-border-subtle rounded-lg p-4">
+                    <Pipeline
+                      steps={PIPELINE_STEPS}
+                      currentStepIndex={currentStepIndex}
+                      currentDescription="正在生成场景 2/4：解决方案展示"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Properties */}
+              <div className="lg:col-span-3 min-h-0">
+                <PropertyPanel
+                  project={project}
+                  selectedScene={scenes.find((s) => s.id === selectedSceneId)}
+                />
               </div>
             </div>
           </main>

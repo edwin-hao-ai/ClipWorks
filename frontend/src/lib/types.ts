@@ -14,6 +14,7 @@ export interface Project {
   status: 'draft' | 'generating' | 'ready' | 'failed';
   target_format: string;
   target_duration?: number;
+  latest_output_url?: string;
   created_at: string;
   updated_at: string;
 }
