@@ -23,24 +23,24 @@ beforeEach(() => {
 
 describe('AgentChat', () => {
   it('renders initial agent message', () => {
-    render(<AgentChat projectId="p1" status="draft" onStatusChange={() => {}} />);
+    render(<AgentChat projectId="p1" onStatusChange={() => {}} />);
     expect(screen.getByText(/我是你的 AI 导演/)).toBeInTheDocument();
   });
 
   it('shows selected scene badge', () => {
-    render(<AgentChat projectId="p1" status="draft" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
+    render(<AgentChat projectId="p1" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
     expect(screen.getByText('开场')).toBeInTheDocument();
   });
 
   it('auto-adds context message when a scene is selected', () => {
-    render(<AgentChat projectId="p1" status="draft" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
+    render(<AgentChat projectId="p1" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
     expect(screen.getByText(/你选中了「开场」/)).toBeInTheDocument();
   });
 
   it('sends scene_id when a scene is selected and a quick prompt is clicked', async () => {
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ reply: '好的' });
 
-    render(<AgentChat projectId="p1" status="draft" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
+    render(<AgentChat projectId="p1" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
 
     fireEvent.click(screen.getByText('更活泼一点'));
 
@@ -56,7 +56,7 @@ describe('AgentChat', () => {
   it('sends a typed message without scene_id when no scene is selected', async () => {
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ reply: '收到' });
 
-    render(<AgentChat projectId="p1" status="draft" onStatusChange={() => {}} />);
+    render(<AgentChat projectId="p1" onStatusChange={() => {}} />);
 
     const input = screen.getByPlaceholderText('输入创作或修改指令…');
     fireEvent.change(input, { target: { value: 'hello' } });
@@ -74,7 +74,7 @@ describe('AgentChat', () => {
     const onStatusChange = vi.fn();
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ reply: '开始生成', job_id: 'job-1' });
 
-    render(<AgentChat projectId="p1" status="draft" onStatusChange={onStatusChange} />);
+    render(<AgentChat projectId="p1" onStatusChange={onStatusChange} />);
 
     fireEvent.click(screen.getByText('更活泼一点'));
 

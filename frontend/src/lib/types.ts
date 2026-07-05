@@ -26,7 +26,7 @@ export interface Composition {
   height: number;
   duration: number;
   fps: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   tracks: Track[];
 }
 
@@ -44,7 +44,7 @@ export interface Clip {
   start_time: number;
   duration: number;
   position?: { x: number; y: number; width: number; height: number };
-  style?: Record<string, any>;
+  style?: Record<string, unknown>;
   text_content?: string;
 }
 
@@ -65,7 +65,7 @@ export interface MediaAsset {
   original_url?: string;
   local_path?: string;
   thumbnail_url?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
 }
 

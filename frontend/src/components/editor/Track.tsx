@@ -1,4 +1,4 @@
-import { Track as TrackType } from '@/lib/types';
+import { Clip, Track as TrackType } from '@/lib/types';
 import { ClipBlock } from './ClipBlock';
 import { Film, Image, Music, Type, Sparkles } from 'lucide-react';
 
@@ -6,7 +6,7 @@ interface Props {
   track: TrackType;
   selectedClipId?: string;
   onSelectClip: (clipId: string) => void;
-  onUpdateClip: (clip: any) => void;
+  onUpdateClip: (clip: Clip) => void;
 }
 
 const trackIcons: Record<string, typeof Film> = {

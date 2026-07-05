@@ -11,7 +11,7 @@ import { PreviewPlayer } from '@/components/project/PreviewPlayer';
 import { PropertyPanel } from '@/components/project/PropertyPanel';
 import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
-import { Project, RenderJob, Scene } from '@/lib/types';
+import { Project, Scene } from '@/lib/types';
 import { api } from '@/lib/api';
 import { Sparkles } from 'lucide-react';
 import { getDemoProjectById } from '@/lib/demoData';
@@ -30,7 +30,6 @@ export default function ProjectWorkspacePage() {
   const [project, setProject] = useState<Project | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
-  const [job, setJob] = useState<RenderJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -107,8 +106,8 @@ export default function ProjectWorkspacePage() {
               </>
             }
           />
-          <main className="flex-1 p-5 overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-3.5rem-2.5rem)]">
+          <main className="flex-1 p-5 overflow-auto lg:overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-auto lg:h-[calc(100vh-3.5rem-2.5rem)]">
               {/* Left: Agent + Scenes */}
               <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
                 {project.status === 'draft' && (
@@ -148,7 +147,6 @@ export default function ProjectWorkspacePage() {
                 )}
                 <AgentChat
                   projectId={project.id}
-                  status={project.status}
                   onStatusChange={(s) => setProject({ ...project, status: s })}
                   selectedSceneId={selectedSceneId}
                   scenes={scenes}
@@ -161,9 +159,9 @@ export default function ProjectWorkspacePage() {
               </div>
 
               {/* Center: Preview + Pipeline */}
-              <div className="lg:col-span-6 flex flex-col gap-4 min-h-0">
+              <div className="lg:col-span-6 flex flex-col gap-4 min-h-0 min-h-[360px]">
                 <div className="flex-1 bg-black rounded-lg overflow-hidden min-h-0">
-                  <PreviewPlayer videoUrl={job?.output_url || project.latest_output_url} />
+                  <PreviewPlayer videoUrl={project.latest_output_url} />
                 </div>
                 {project.status === 'generating' && (
                   <div className="bg-background-surface border border-border-subtle rounded-lg p-4">

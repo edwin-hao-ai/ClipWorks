@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Film, Plus } from 'lucide-react';
+import { Film } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AuthGuard } from '@/components/layout/AuthGuard';
@@ -31,7 +31,7 @@ export default function ProjectsPage() {
     try {
       await api.delete(`/projects/${id}`);
       load();
-    } catch (err) {
+    } catch {
       // Optimistically remove from local demo list
       setProjects((prev) => prev.filter((p) => p.id !== id));
     }

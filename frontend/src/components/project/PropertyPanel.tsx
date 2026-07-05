@@ -2,7 +2,7 @@
 
 import { Project, Scene } from '@/lib/types';
 import { clsx } from 'clsx';
-import { Type, Clock, Monitor, Image, Music } from 'lucide-react';
+import { Type, Clock, Monitor, Image as ImageIcon, Music } from 'lucide-react';
 
 interface PropertyPanelProps {
   project: Project;
@@ -89,7 +89,7 @@ export function PropertyPanel({ project, selectedScene }: PropertyPanelProps) {
           </div>
           <div className="border-t border-border-subtle pt-4">
             <div className="flex items-center gap-2 text-sm font-semibold mb-3">
-              <Image className="w-4 h-4 text-brand-400" />
+              <ImageIcon className="w-4 h-4 text-brand-400" />
               素材
             </div>
             <div className="space-y-2">

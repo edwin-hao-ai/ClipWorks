@@ -11,7 +11,7 @@ interface Props {
 
 export const PIXELS_PER_SECOND = 24;
 
-export function ClipBlock({ clip, onUpdate, onSelect, selected }: Props) {
+export function ClipBlock({ clip, onSelect, selected }: Props) {
   const left = clip.start_time * PIXELS_PER_SECOND;
   const width = Math.max(clip.duration * PIXELS_PER_SECOND, 6);
 

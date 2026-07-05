@@ -14,7 +14,6 @@ interface Message {
 
 interface AgentChatProps {
   projectId: string;
-  status: string;
   selectedSceneId?: string | null;
   scenes?: Scene[];
   onStatusChange: (status: 'draft' | 'generating' | 'ready' | 'failed') => void;
@@ -28,7 +27,7 @@ const QUICK_PROMPTS = [
   '换背景音乐',
 ];
 
-export function AgentChat({ projectId, status, selectedSceneId, scenes = [], onStatusChange }: AgentChatProps) {
+export function AgentChat({ projectId, selectedSceneId, scenes = [], onStatusChange }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'agent', text: 'Hi! 我是你的 AI 导演。输入一句话开始创作，或点击左侧场景卡片修改某个画面。' },
   ]);
@@ -54,7 +53,7 @@ export function AgentChat({ projectId, status, selectedSceneId, scenes = [], onS
         ];
       });
     }
-  }, [selectedSceneId, scenes]);
+  }, [selectedScene]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading) return;
@@ -64,7 +63,7 @@ export function AgentChat({ projectId, status, selectedSceneId, scenes = [], onS
     setError(null);
 
     try {
-      const payload: Record<string, any> = { message: text, render: true };
+      const payload: { message: string; render: boolean; scene_id?: string } = { message: text, render: true };
       if (selectedSceneId) payload.scene_id = selectedSceneId;
       const data = await api.post(`/projects/${projectId}/agent/chat`, payload);
       const reply = data.reply || '已收到你的修改要求。';
