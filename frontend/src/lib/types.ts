@@ -66,3 +66,15 @@ export interface MediaAsset {
   metadata?: Record<string, any>;
   created_at: string;
 }
+
+export interface Scene {
+  id: string;
+  index: number;
+  name: string;
+  description: string;
+  start_time: number;
+  duration: number;
+  thumbnail?: string;
+  text_content?: string;
+  visual_content?: string;
+}
