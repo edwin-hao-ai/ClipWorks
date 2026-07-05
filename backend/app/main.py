@@ -1,14 +1,17 @@
+import logging
+import os
+import shutil
+
+import httpx
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from app.routers import auth, projects, compositions, assets, renders, agent
-from app.database import get_db, list_tables
+
 from app import config  # loads .env at startup
-import logging
-import os
-import shutil
+from app.database import get_db, list_tables
+from app.routers import auth, projects, compositions, assets, renders, agent
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +47,13 @@ app.include_router(agent.router)
 @app.on_event("startup")
 def startup_event():
     logger.info("Renderer URL: %s", config.RENDERER_URL)
+    try:
+        resp = httpx.get(f"{config.RENDERER_URL}/health", timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        logger.info("Renderer health: %s", data)
+    except Exception as exc:
+        logger.warning("Renderer unavailable at startup: %s", exc)
 
 
 @app.get("/health")
