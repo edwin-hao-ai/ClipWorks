@@ -36,6 +36,12 @@ class RemotionRequest(BaseModel):
     output_path: str
 
 
+class VideoUseRequest(BaseModel):
+    asset_paths: list[str]
+    instruction: str
+    output_path: str
+
+
 def _relative_url(abs_path: str) -> str:
     abs_path = os.path.abspath(abs_path)
     if os.path.commonpath([abs_path, ASSETS_DIR]) != ASSETS_DIR:
@@ -108,3 +114,15 @@ def render_remotion(req: RemotionRequest):
         return {"success": True, "output_url": _relative_url(req.output_path), "error": None}
     except Exception as exc:
         return {"success": False, "output_url": None, "error": str(exc)}
+
+
+@app.post("/render/video-use")
+def render_video_use(req: VideoUseRequest):
+    if not _is_under_assets(req.output_path):
+        raise HTTPException(status_code=400, detail="Output path must be under ASSETS_DIR")
+
+    from video_use.edit_video import edit_video
+    result = edit_video(req.asset_paths, req.instruction, req.output_path)
+    if not result["success"]:
+        return {"success": False, "output_url": None, "error": result["error"]}
+    return {"success": True, "output_url": _relative_url(req.output_path), "error": None}
