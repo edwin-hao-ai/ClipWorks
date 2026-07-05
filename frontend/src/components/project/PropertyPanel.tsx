@@ -13,12 +13,12 @@ export function PropertyPanel({ project, selectedScene }: PropertyPanelProps) {
       <h3 className="font-semibold text-content-primary mb-4">属性</h3>
       <div className="space-y-4">
         <div>
-          <label className="text-xs text-text-secondary">状态</label>
+          <label className="text-xs text-content-secondary">状态</label>
           <p className="text-sm text-content-primary">{project.status}</p>
         </div>
         {selectedScene ? (
           <div>
-            <label className="text-xs text-text-secondary">当前场景</label>
+            <label className="text-xs text-content-secondary">当前场景</label>
             <p className="text-sm text-content-primary">{selectedScene.name}</p>
           </div>
         ) : (

@@ -112,6 +112,8 @@ export default function ProjectWorkspacePage() {
                   projectId={project.id}
                   status={project.status}
                   onStatusChange={(s) => setProject({ ...project, status: s })}
+                  selectedSceneId={selectedSceneId}
+                  scenes={scenes}
                 />
                 <SceneCards
                   scenes={scenes}

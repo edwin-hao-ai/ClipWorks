@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
-import { Project } from '@/lib/types';
+import { Project, Scene } from '@/lib/types';
 import { MessageSquare, Send, Bot, User } from 'lucide-react';
 
 interface Message {
@@ -15,9 +15,11 @@ interface Props {
   projectId: string;
   status: Project['status'];
   onStatusChange: (status: Project['status']) => void;
+  selectedSceneId?: string | null;
+  scenes?: Scene[];
 }
 
-export function AgentChat({ projectId, status, onStatusChange }: Props) {
+export function AgentChat({ projectId, status, onStatusChange, selectedSceneId, scenes }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'agent', text: 'Hi! I can help you refine your video. Try "make the title red" or "shorten scene 2".' },
   ]);
