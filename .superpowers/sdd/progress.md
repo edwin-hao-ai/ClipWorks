@@ -43,5 +43,6 @@
 - Task 7: complete (commits d64473d..afe460b, review clean after fixes)
 - Task 8: complete (commits f01c27d..959abff, review clean)
 - Task 9: complete — Update documentation and progress ledger
+- Task 10: complete — Final review fixes (commits c653e93..ff0e7f4): restore project-level HTML preview on fallback engines, remove unverified HyperFrames CLI duration/fps flags
 
-- HyperFrames / Node.js / Remotion / video-use multi-engine rendering: complete
+- HyperFrames / Node.js / Remotion / video-use multi-engine rendering: complete (final review Approved with minor notes)
