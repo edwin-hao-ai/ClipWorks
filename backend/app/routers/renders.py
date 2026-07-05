@@ -26,22 +26,6 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
     return project
 
 
-def _is_default_seeded_composition(comp: dict) -> bool:
-    """Detect whether the composition is still the seeded default placeholder."""
-    tracks = comp.get("tracks", [])
-    if len(tracks) != 2:
-        return False
-    types = {t.get("type") for t in tracks}
-    if types != {"video", "text"}:
-        return False
-    for t in tracks:
-        if t.get("type") == "text":
-            for c in t.get("clips", []):
-                if c.get("text_content") == "ClipWorks":
-                    return True
-    return False
-
-
 async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str], engine: Optional[str]):
     db = SessionLocal()
     try:
@@ -116,6 +100,7 @@ def agent_generate_video(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Regenerate video using the Agent, optionally guided by a user prompt and engine choice."""
     project = _require_project(project_id, user, db)
     prompt = data.get("prompt") if isinstance(data, dict) else None
     engine = data.get("engine") if isinstance(data, dict) else None
