@@ -36,7 +36,7 @@
 ## Tasks
 - Task 1: complete (commits 1385260..d6dea45, review clean)
 - Task 2: complete (commits 63bd8f7..06d3d87, review clean after fixes)
-- Task 3: pending — Backend RenderProvider interface + HyperFramesProvider
+- Task 3: complete (commits bce1c76..6547efd, review clean after fixes)
 - Task 4: pending — EngineSelector and RenderService fallback chain
 - Task 5: pending — Remotion renderer endpoint and provider
 - Task 6: pending — video-use renderer endpoint and provider
