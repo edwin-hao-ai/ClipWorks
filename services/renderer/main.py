@@ -41,8 +41,6 @@ def health():
 class HyperFramesRequest(BaseModel):
     html_path: str
     output_path: str
-    duration: int = 30
-    fps: int = 30
 
 
 class RemotionRequest(BaseModel):

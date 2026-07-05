@@ -29,7 +29,7 @@ def test_render_hyperframes_writes_output(sample_html, assets_dir):
         mock_run.return_value.returncode = 0
         response = client.post(
             "/render/hyperframes",
-            json={"html_path": sample_html, "output_path": output_path, "duration": 5, "fps": 30},
+            json={"html_path": sample_html, "output_path": output_path},
         )
 
     assert response.status_code == 200

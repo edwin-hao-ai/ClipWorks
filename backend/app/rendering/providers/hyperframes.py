@@ -29,8 +29,6 @@ class HyperFramesProvider(RenderProvider):
         payload = {
             "html_path": html_path,
             "output_path": output_path,
-            "duration": request.composition.get("duration", 30),
-            "fps": request.composition.get("fps", 30),
         }
 
         try:
