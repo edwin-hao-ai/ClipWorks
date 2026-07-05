@@ -12,12 +12,8 @@ def _has_command(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
 
-def _command_succeeds(cmd: list[str], cwd: str | None = None, timeout: int = 10) -> bool:
-    try:
-        result = subprocess.run(cmd, capture_output=True, cwd=cwd, timeout=timeout)
-        return result.returncode == 0
-    except Exception:
-        return False
+def _has_node_module_bin(name: str) -> bool:
+    return os.path.exists(os.path.join("/app", "node_modules", ".bin", name))
 
 
 def _has_chromium() -> bool:
@@ -32,12 +28,11 @@ def _has_chromium() -> bool:
 
 @app.get("/health")
 def health():
-    remotion_dir = os.path.join(os.path.dirname(__file__), "remotion")
     return {
         "status": "ok",
         "engines": {
-            "hyperframes": _command_succeeds(["npx", "hyperframes", "--version"]),
-            "remotion": _command_succeeds(["npx", "remotion", "--version"], cwd=remotion_dir),
+            "hyperframes": _has_node_module_bin("hyperframes"),
+            "remotion": _has_node_module_bin("remotion"),
             "video_use": _has_command("ffmpeg") and _has_chromium(),
         },
     }
