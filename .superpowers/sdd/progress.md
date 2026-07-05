@@ -39,7 +39,7 @@
 - Task 3: complete (commits bce1c76..6547efd, review clean after fixes)
 - Task 4: complete (commits 2480438..b44f3b4, review clean after fixes)
 - Task 5: complete (commits a7003b5..f7b9ff0, review clean)
-- Task 6: pending — video-use renderer endpoint and provider
+- Task 6: complete (commits 1505e86..0de3469, review clean after fixes)
 - Task 7: pending — Wire renderer service into Docker Compose
 - Task 8: pending — Final integration and full test run
 - Task 9: pending — Update documentation and progress ledger
