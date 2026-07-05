@@ -13,7 +13,7 @@ async def test_hyperframes_provider_can_handle_html_request():
 
 
 @pytest.mark.asyncio
-async def test_hyperframes_provider_calls_renderer(monkeypatch):
+async def test_hyperframes_provider_calls_renderer(monkeypatch, tmp_path):
     provider = HyperFramesProvider()
     job = MagicMock()
     project = MagicMock()
@@ -28,6 +28,7 @@ async def test_hyperframes_provider_calls_renderer(monkeypatch):
         "app.rendering.providers.hyperframes.generate_html",
         lambda _comp, _assets: "<html></html>",
     )
+    monkeypatch.setattr("app.rendering.providers.hyperframes.ASSETS_DIR", str(tmp_path))
 
     mock_post = AsyncMock()
     mock_response = MagicMock()

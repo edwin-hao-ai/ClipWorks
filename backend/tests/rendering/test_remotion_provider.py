@@ -23,7 +23,7 @@ async def test_remotion_provider_calls_renderer(monkeypatch, tmp_path):
     mock_post.return_value = mock_response
     monkeypatch.setattr("httpx.AsyncClient.post", mock_post)
 
-    with patch("app.config.ASSETS_DIR", str(tmp_path)):
+    with patch("app.rendering.providers.remotion.ASSETS_DIR", str(tmp_path)):
         result = await provider.render(MagicMock(), project, RenderRequest(composition={"duration": 10}, assets={}))
 
     assert result.success is True

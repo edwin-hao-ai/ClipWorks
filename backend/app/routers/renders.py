@@ -6,12 +6,15 @@ from typing import Optional
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
+from app.agent import plan_video, build_composition
 from app.database import get_db, SessionLocal
-from app.models import Project, RenderJob, User
+from app.models import Project, RenderJob, User, Track, Clip
 from app.rendering.provider import RenderRequest
 from app.rendering.service import RenderService
 from app.routers.auth import get_current_user
 from app.routers.compositions import build_composition_json
+from app.services.assets import resolve_image_asset, persist_asset
+from app.services.scraper import scrape_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/renders", tags=["renders"])
@@ -26,6 +29,85 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
     return project
 
 
+def _is_default_seeded_composition(comp: dict) -> bool:
+    """Detect whether the composition is still the seeded default placeholder."""
+    tracks = comp.get("tracks", [])
+    if not tracks:
+        return True
+    if len(tracks) != 2:
+        return False
+    types = {t.get("type") for t in tracks}
+    if types != {"video", "text"}:
+        return False
+    for t in tracks:
+        if t.get("type") == "text":
+            for c in t.get("clips", []):
+                if c.get("text_content") == "ClipWorks":
+                    return True
+    return False
+
+
+def _persist_composition_tracks(project: Project, comp_json: dict, db: Session) -> None:
+    """Replace the project's composition tracks with the provided composition JSON."""
+    if project.composition is None:
+        return
+    for track in project.composition.tracks:
+        db.delete(track)
+    db.flush()
+    for t_data in comp_json.get("tracks", []):
+        track = Track(
+            composition_id=project.composition.id,
+            type=t_data["type"],
+            index=t_data["index"],
+            name=t_data.get("name"),
+        )
+        db.add(track)
+        db.flush()
+        for c_data in t_data.get("clips", []):
+            clip = Clip(
+                track_id=track.id,
+                asset_id=c_data.get("asset_id"),
+                start_time=c_data.get("start_time", 0),
+                duration=c_data.get("duration", 5),
+                position=c_data.get("position", {}),
+                style=c_data.get("style", {}),
+                text_content=c_data.get("text_content"),
+            )
+            db.add(clip)
+    db.commit()
+    db.refresh(project)
+
+
+def _maybe_plan_and_persist(project: Project, prompt: Optional[str], db: Session) -> dict:
+    """If the composition is still the default placeholder, plan and persist a new one."""
+    comp_json = build_composition_json(project.composition) if project.composition else {"tracks": []}
+
+    if _is_default_seeded_composition(comp_json):
+        plan = plan_video(source_url=project.source_url, user_prompt=prompt)
+        comp_json = build_composition(plan)
+        _persist_composition_tracks(project, comp_json, db)
+        comp_json = build_composition_json(project.composition)
+
+    return comp_json
+
+
+def _build_assets(project: Project, db: Session) -> dict:
+    """Scrape the project's source URL and resolve the first image asset."""
+    assets = {}
+    if not project.source_url:
+        return assets
+
+    scraped = scrape_url(project.source_url)
+    if scraped.get("images"):
+        first_image = scraped["images"][0]
+        asset_data = resolve_image_asset(first_image, project.id, db)
+        if asset_data.get("local_path"):
+            persist_asset(project.id, asset_data, db)
+            assets["background_image"] = "/" + asset_data["local_path"]
+    assets["scraped"] = scraped
+    return assets
+
+
 async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str], engine: Optional[str]):
     db = SessionLocal()
     try:
@@ -33,11 +115,14 @@ async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str]
         project = db.query(Project).filter(Project.id == project_id).first()
         if not job or not project:
             return
-        comp_json = build_composition_json(project.composition) if project.composition else {"tracks": []}
+
+        comp_json = _maybe_plan_and_persist(project, prompt, db)
+        assets = _build_assets(project, db)
+
         request = RenderRequest(
             engine=engine,
             composition=comp_json,
-            assets={},
+            assets=assets,
             user_prompt=prompt,
             source_url=project.source_url,
         )

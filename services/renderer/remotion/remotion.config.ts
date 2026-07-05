@@ -1,5 +1,5 @@
 import { Config } from "remotion";
 
-export const config: Config = {
+export const Config: Config = {
   ffmpegOverride: () => undefined,
 };

@@ -12,14 +12,33 @@ def _has_command(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
 
+def _command_succeeds(cmd: list[str], cwd: str | None = None, timeout: int = 10) -> bool:
+    try:
+        result = subprocess.run(cmd, capture_output=True, cwd=cwd, timeout=timeout)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _has_chromium() -> bool:
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            return os.path.exists(p.chromium.executable_path)
+    except Exception:
+        return False
+
+
 @app.get("/health")
 def health():
+    remotion_dir = os.path.join(os.path.dirname(__file__), "remotion")
     return {
         "status": "ok",
         "engines": {
-            "hyperframes": _has_command("npx"),
-            "remotion": _has_command("npx"),
-            "video_use": _has_command("python3"),
+            "hyperframes": _command_succeeds(["npx", "hyperframes", "--version"]),
+            "remotion": _command_succeeds(["npx", "remotion", "--version"], cwd=remotion_dir),
+            "video_use": _has_command("ffmpeg") and _has_chromium(),
         },
     }
 
@@ -99,7 +118,7 @@ def render_remotion(req: RemotionRequest):
     if not _is_under_assets(req.composition_path) or not _is_under_assets(req.output_path):
         raise HTTPException(status_code=400, detail="Paths must be under ASSETS_DIR")
 
-    os.makedirs(os.path.dirname(req.output_path), exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(req.output_path)), exist_ok=True)
     remotion_dir = os.path.join(os.path.dirname(__file__), "remotion")
 
     cmd = [
@@ -121,8 +140,12 @@ def render_video_use(req: VideoUseRequest):
     if not _is_under_assets(req.output_path):
         raise HTTPException(status_code=400, detail="Output path must be under ASSETS_DIR")
 
+    for path in req.asset_paths:
+        if not _is_under_assets(path):
+            raise HTTPException(status_code=400, detail=f"Asset path must be under ASSETS_DIR: {path}")
+
     from video_use.edit_video import edit_video
-    result = edit_video(req.asset_paths, req.instruction, req.output_path)
+    result = edit_video(req.asset_paths, req.instruction, req.output_path, assets_dir=ASSETS_DIR)
     if not result["success"]:
         return {"success": False, "output_url": None, "error": result["error"]}
     return {"success": True, "output_url": _relative_url(req.output_path), "error": None}

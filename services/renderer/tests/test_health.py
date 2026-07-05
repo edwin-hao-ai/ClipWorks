@@ -11,3 +11,8 @@ def test_health_returns_status_and_engines():
     assert data["status"] == "ok"
     assert "engines" in data
     assert "hyperframes" in data["engines"]
+    assert "remotion" in data["engines"]
+    assert "video_use" in data["engines"]
+    assert isinstance(data["engines"]["hyperframes"], bool)
+    assert isinstance(data["engines"]["remotion"], bool)
+    assert isinstance(data["engines"]["video_use"], bool)

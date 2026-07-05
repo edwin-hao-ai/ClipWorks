@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+from urllib.parse import urljoin
 
 import httpx
 from fastapi import FastAPI, Depends, HTTPException
@@ -48,7 +49,7 @@ app.include_router(agent.router)
 def startup_event():
     logger.info("Renderer URL: %s", config.RENDERER_URL)
     try:
-        resp = httpx.get(f"{config.RENDERER_URL}/health", timeout=5)
+        resp = httpx.get(urljoin(config.RENDERER_URL, "/health"), timeout=5)
         resp.raise_for_status()
         data = resp.json()
         logger.info("Renderer health: %s", data)
