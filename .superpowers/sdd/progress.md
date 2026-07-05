@@ -41,5 +41,5 @@
 - Task 5: complete (commits a7003b5..f7b9ff0, review clean)
 - Task 6: complete (commits 1505e86..0de3469, review clean after fixes)
 - Task 7: complete (commits d64473d..afe460b, review clean after fixes)
-- Task 8: pending — Final integration and full test run
+- Task 8: complete (commits f01c27d..959abff, review clean)
 - Task 9: pending — Update documentation and progress ledger
