@@ -15,6 +15,7 @@ export interface Project {
   target_format: string;
   target_duration?: number;
   latest_output_url?: string;
+  composition?: Composition;
   created_at: string;
   updated_at: string;
 }
