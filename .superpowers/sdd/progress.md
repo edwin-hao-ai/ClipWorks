@@ -10,3 +10,5 @@
 - Task 2: complete (commits 0e15580..40faaa1, review clean after fixes)
 - Task 3: complete (commits 40faaa1..d6b3372, review clean after fix)
 - Task 4: complete (review clean after fixes)
+- Task 5: complete (commits 87f68fd..65427d3, review clean)
+- Task 6: complete (review clean)
