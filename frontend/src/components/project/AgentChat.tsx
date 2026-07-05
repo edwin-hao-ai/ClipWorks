@@ -45,16 +45,15 @@ export function AgentChat({ projectId, selectedSceneId, scenes = [], onStatusCha
     [selectedSceneId, scenes]
   );
 
+  const introducedSceneIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    if (selectedScene) {
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'agent' && last.text.includes(`「${selectedScene.name}」`)) return prev;
-        return [
-          ...prev,
-          { role: 'agent', text: `你选中了「${selectedScene.name}」（${formatTime(selectedScene.start_time)}-${formatTime(selectedScene.start_time + selectedScene.duration)}）。想怎么改这个场景？` },
-        ];
-      });
+    if (selectedScene && !introducedSceneIdsRef.current.has(selectedScene.id)) {
+      introducedSceneIdsRef.current.add(selectedScene.id);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'agent', text: `你选中了「${selectedScene.name}」（${formatTime(selectedScene.start_time)}-${formatTime(selectedScene.start_time + selectedScene.duration)}）。想怎么改这个场景？` },
+      ]);
     }
   }, [selectedScene]);
 

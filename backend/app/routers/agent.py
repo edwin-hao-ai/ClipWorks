@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.agent import modify_video
@@ -13,6 +14,12 @@ from app.routers.renders import render_video_task
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/agent", tags=["agent"])
+
+
+class AgentChatPayload(BaseModel):
+    message: str
+    scene_id: Optional[str] = None
+    render: bool = True
 
 
 def _require_project(project_id: str, user: User, db: Session) -> Project:
@@ -56,7 +63,7 @@ def _persist_composition(project, comp_json, db):
 @router.post("/chat")
 def chat_with_agent(
     project_id: str,
-    payload: dict,
+    payload: AgentChatPayload,
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -64,31 +71,31 @@ def chat_with_agent(
     """Chat with the Agent to modify the current composition. Optionally triggers re-render."""
     project = _require_project(project_id, user, db)
 
-    message = (payload.get("message") or "").strip()
+    message = payload.message.strip()
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
 
     if not project.composition:
         raise HTTPException(status_code=404, detail="Composition not found")
 
-    scene_id = payload.get("scene_id")
-    should_render = payload.get("render", True)
+    scene_id = payload.scene_id
+    should_render = payload.render
     current_composition = build_composition_json(project.composition)
 
     try:
-        updated = modify_video(current_composition, message, scene_id=scene_id)
+        result = modify_video(current_composition, message, scene_id=scene_id)
     except Exception as exc:
         logger.exception("Agent chat modification failed")
         raise HTTPException(status_code=500, detail=f"Agent failed: {exc}")
 
+    updated = result.get("composition")
     if not updated or not isinstance(updated, dict):
         raise HTTPException(status_code=500, detail="Agent returned invalid composition")
 
     _persist_composition(project, updated, db)
 
-    reply = f"已应用修改：{message}"
-    if scene_id:
-        reply = f"已针对场景调整：{message}"
+    default_reply = f"已针对场景调整：{message}" if scene_id else f"已应用修改：{message}"
+    reply = result.get("reply") or default_reply
 
     # Optionally trigger re-render in the background
     job = None

@@ -37,6 +37,15 @@ describe('AgentChat', () => {
     expect(screen.getByText(/你选中了「开场」/)).toBeInTheDocument();
   });
 
+  it('does not duplicate context message when the same scene stays selected', () => {
+    const { rerender } = render(
+      <AgentChat projectId="p1" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />
+    );
+    rerender(<AgentChat projectId="p1" selectedSceneId="s1" scenes={scenes} onStatusChange={() => {}} />);
+    const messages = screen.getAllByText(/你选中了「开场」/);
+    expect(messages).toHaveLength(1);
+  });
+
   it('sends scene_id when a scene is selected and a quick prompt is clicked', async () => {
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ reply: '好的' });
 

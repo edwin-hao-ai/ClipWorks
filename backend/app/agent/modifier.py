@@ -24,7 +24,7 @@ def _fallback_modify(composition: dict, user_message: str, scene_id: Optional[st
                         clip.setdefault("style", {})["fontSize"] = 96
                     if "短" in user_message or "short" in message_lower:
                         clip["duration"] = max(1, clip.get("duration", 5) - 2)
-                    return modified
+                    return _wrap_reply(modified, user_message, scene_id=scene_id)
 
     # Global changes
     if "短" in user_message or "short" in message_lower:
@@ -33,11 +33,20 @@ def _fallback_modify(composition: dict, user_message: str, scene_id: Optional[st
         for track in modified.get("tracks", []):
             for clip in track.get("clips", []):
                 clip.setdefault("style", {})["color"] = "#ef4444"
-    return modified
+    return _wrap_reply(modified, user_message, scene_id=scene_id)
+
+
+def _wrap_reply(composition: dict, user_message: str, scene_id: Optional[str] = None) -> dict:
+    reply = f"已针对场景调整：{user_message}" if scene_id else f"已应用修改：{user_message}"
+    return {"reply": reply, "composition": composition}
 
 
 def modify_video(composition: dict, user_message: str, scene_id: Optional[str] = None) -> dict:
-    """Modify composition based on natural language instruction."""
+    """Modify composition based on natural language instruction.
+
+    Returns a dict with ``reply`` (a human-readable response) and
+    ``composition`` (the updated composition dict).
+    """
     prompt = json.dumps({
         "composition": composition,
         "user_message": user_message,
@@ -50,15 +59,14 @@ def modify_video(composition: dict, user_message: str, scene_id: Optional[str] =
             system_prompt=MODIFY_VIDEO,
             user_prompt=prompt,
         )
-        if result:
-            # The current MODIFY_VIDEO prompt asks for {"reply", "composition"}.
-            # Also accept a bare composition JSON for forward compatibility.
+        if result and isinstance(result, dict):
+            reply = result.get("reply", "")
             if "composition" in result:
                 logger.info("Composition modified via LLM")
-                return result["composition"]
+                return {"reply": reply, "composition": result["composition"]}
             if "tracks" in result:
                 logger.info("Composition modified via LLM")
-                return result
+                return {"reply": reply, "composition": result}
     except Exception as exc:
         logger.error("modify_video LLM failed, using fallback: %s", exc)
 

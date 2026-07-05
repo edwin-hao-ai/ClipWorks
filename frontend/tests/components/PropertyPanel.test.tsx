@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { PropertyPanel } from '@/components/project/PropertyPanel';
 import { Project, Scene } from '@/lib/types';
 
@@ -29,5 +29,34 @@ describe('PropertyPanel', () => {
     render(<PropertyPanel project={mockProject} selectedScene={scenes[0]} />);
     expect(screen.getByText('场景属性')).toBeInTheDocument();
     expect(screen.getByDisplayValue('开场')).toBeInTheDocument();
+  });
+
+  it('calls onChange with updated project payload when title changes', () => {
+    const onChange = vi.fn();
+    render(<PropertyPanel project={mockProject} onChange={onChange} />);
+
+    const input = screen.getByDisplayValue('Test');
+    fireEvent.change(input, { target: { value: 'New Title' } });
+
+    expect(onChange).toHaveBeenCalledWith({ title: 'New Title', target_format: '16:9', target_duration: 30 });
+  });
+
+  it('calls onChange with target_format when aspect ratio button is clicked', () => {
+    const onChange = vi.fn();
+    render(<PropertyPanel project={mockProject} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '9:16' }));
+
+    expect(onChange).toHaveBeenCalledWith({ title: 'Test', target_format: '9:16', target_duration: 30 });
+  });
+
+  it('calls onChange with updated scene payload when scene name changes', () => {
+    const onChange = vi.fn();
+    render(<PropertyPanel project={mockProject} selectedScene={scenes[0]} onChange={onChange} />);
+
+    const input = screen.getByDisplayValue('开场');
+    fireEvent.change(input, { target: { value: '新开场' } });
+
+    expect(onChange).toHaveBeenCalledWith({ name: '新开场', text_content: '', duration: 5 });
   });
 });

@@ -11,7 +11,7 @@ import { PreviewPlayer } from '@/components/project/PreviewPlayer';
 import { PropertyPanel } from '@/components/project/PropertyPanel';
 import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
-import { Project, Scene } from '@/lib/types';
+import { Composition, Project, Scene } from '@/lib/types';
 import { api } from '@/lib/api';
 import { Sparkles } from 'lucide-react';
 import { getDemoProjectById } from '@/lib/demoData';
@@ -62,6 +62,57 @@ export default function ProjectWorkspacePage() {
     return () => { cancelled = true; };
   }, [id]);
 
+  // TODO: replace coarse status-to-step mapping with backend RenderJob events
+  // for granular, trustworthy pipeline progress (e.g. step started/finished).
+  const currentStepIndex = project?.status === 'draft' ? -1 : project?.status === 'generating' ? 3 : 5;
+
+  const pipelineDescription: Record<Project['status'], string> = {
+    draft: '等待生成',
+    generating: '生成中…',
+    ready: '生成完成',
+    failed: '生成失败',
+  };
+
+  const hasComposition = Boolean(
+    project?.composition &&
+      Array.isArray((project.composition as Composition).tracks) &&
+      (project.composition as Composition).tracks.length > 0
+  );
+  const canGenerate = Boolean(project?.source_url && hasComposition);
+
+  const handlePropertyChange = async (changes: Partial<Project> | Partial<Scene>) => {
+    if (!project) return;
+    if ('target_format' in changes && changes.target_format) {
+      try {
+        setGenerationError(null);
+        const data = await api.post(`/projects/${project.id}/agent/chat`, {
+          message: `把画幅改成 ${changes.target_format}`,
+          render: true,
+        });
+        setProject((prev) =>
+          prev
+            ? {
+                ...prev,
+                target_format: changes.target_format as string,
+                composition: (data.composition as Composition) || prev.composition,
+              }
+            : null
+        );
+      } catch (err) {
+        setGenerationError(err instanceof Error ? err.message : '修改画幅失败，请重试');
+      }
+      return;
+    }
+
+    if (selectedSceneId) {
+      setScenes((prev) =>
+        prev.map((s) => (s.id === selectedSceneId ? { ...s, ...changes } : s))
+      );
+    } else {
+      setProject((prev) => (prev ? { ...prev, ...changes } : null));
+    }
+  };
+
   if (loading) {
     return (
       <AuthGuard>
@@ -87,8 +138,6 @@ export default function ProjectWorkspacePage() {
       </AuthGuard>
     );
   }
-
-  const currentStepIndex = project.status === 'draft' ? -1 : project.status === 'generating' ? 3 : 5;
 
   return (
     <AuthGuard>
@@ -125,7 +174,7 @@ export default function ProjectWorkspacePage() {
                           setIsGenerating(false);
                         }
                       }}
-                      disabled={isGenerating}
+                      disabled={isGenerating || !canGenerate}
                       className="w-full"
                     >
                       {isGenerating ? (
@@ -140,6 +189,11 @@ export default function ProjectWorkspacePage() {
                         </span>
                       )}
                     </Button>
+                    {!canGenerate && (
+                      <p className="text-xs text-text-tertiary text-center">
+                        请设置素材来源并确保项目已有合成内容
+                      </p>
+                    )}
                     {generationError && (
                       <p className="text-sm text-error text-center">{generationError}</p>
                     )}
@@ -168,7 +222,7 @@ export default function ProjectWorkspacePage() {
                     <Pipeline
                       steps={PIPELINE_STEPS}
                       currentStepIndex={currentStepIndex}
-                      currentDescription="正在生成场景 2/4：解决方案展示"
+                      currentDescription={pipelineDescription[project.status]}
                     />
                   </div>
                 )}
@@ -179,6 +233,7 @@ export default function ProjectWorkspacePage() {
                 <PropertyPanel
                   project={project}
                   selectedScene={scenes.find((s) => s.id === selectedSceneId)}
+                  onChange={handlePropertyChange}
                 />
               </div>
             </div>
