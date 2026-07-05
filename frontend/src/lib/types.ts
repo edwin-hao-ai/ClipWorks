@@ -71,10 +71,16 @@ export interface Scene {
   id: string;
   index: number;
   name: string;
-  description: string;
+  description?: string;
   start_time: number;
   duration: number;
   thumbnail?: string;
   text_content?: string;
   visual_content?: string;
+}
+
+export interface PipelineStep {
+  id: string;
+  label: string;
+  description?: string;
 }
