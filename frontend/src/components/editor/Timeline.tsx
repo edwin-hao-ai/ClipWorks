@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Composition, Clip } from '@/lib/types';
+import { Composition } from '@/lib/types';
 import { Playhead } from './Playhead';
 import { Track } from './Track';
 import { ZoomIn, ZoomOut, Clock } from 'lucide-react';
@@ -46,7 +46,6 @@ export function Timeline({ composition }: Props) {
               track={track}
               selectedClipId={selectedClipId}
               onSelectClip={setSelectedClipId}
-              onUpdateClip={(clip: Clip) => console.log('update clip', clip)}
             />
           ))}
         </div>

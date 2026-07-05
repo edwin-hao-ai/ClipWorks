@@ -4,7 +4,6 @@ import { Clip } from '@/lib/types';
 
 interface Props {
   clip: Clip;
-  onUpdate: (clip: Clip) => void;
   onSelect: (clip: Clip) => void;
   selected: boolean;
 }

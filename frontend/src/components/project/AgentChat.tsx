@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { clsx } from 'clsx';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
@@ -40,7 +40,10 @@ export function AgentChat({ projectId, selectedSceneId, scenes = [], onStatusCha
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const selectedScene = scenes.find((s) => s.id === selectedSceneId);
+  const selectedScene = useMemo(
+    () => scenes.find((s) => s.id === selectedSceneId),
+    [selectedSceneId, scenes]
+  );
 
   useEffect(() => {
     if (selectedScene) {

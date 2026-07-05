@@ -1,4 +1,4 @@
-import { Clip, Track as TrackType } from '@/lib/types';
+import { Track as TrackType } from '@/lib/types';
 import { ClipBlock } from './ClipBlock';
 import { Film, Image, Music, Type, Sparkles } from 'lucide-react';
 
@@ -6,7 +6,6 @@ interface Props {
   track: TrackType;
   selectedClipId?: string;
   onSelectClip: (clipId: string) => void;
-  onUpdateClip: (clip: Clip) => void;
 }
 
 const trackIcons: Record<string, typeof Film> = {
@@ -25,7 +24,7 @@ const trackColors: Record<string, string> = {
   overlay: 'text-timeline-overlay bg-timeline-overlay/10',
 };
 
-export function Track({ track, selectedClipId, onSelectClip, onUpdateClip }: Props) {
+export function Track({ track, selectedClipId, onSelectClip }: Props) {
   const Icon = trackIcons[track.type] || Film;
   const colorClass = trackColors[track.type] || 'text-content-secondary bg-background-hover';
 
@@ -42,7 +41,6 @@ export function Track({ track, selectedClipId, onSelectClip, onUpdateClip }: Pro
             clip={clip}
             selected={clip.id === selectedClipId}
             onSelect={(c) => onSelectClip(c.id)}
-            onUpdate={onUpdateClip}
           />
         ))}
       </div>
