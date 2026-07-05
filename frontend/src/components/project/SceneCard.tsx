@@ -21,17 +21,12 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
   const end = formatTime(scene.start_time + scene.duration);
 
   return (
-    <div
-      tabIndex={0}
+    <button
+      type="button"
       onClick={() => onClick?.(scene.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick?.(scene.id);
-        }
-      }}
+      aria-label={`选择场景：${scene.name}`}
       className={clsx(
-        'group flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all duration-200',
+        'group flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all duration-200 text-left',
         isSelected
           ? 'bg-brand-900/20 border-brand-500/60 shadow-[0_0_16px_rgba(14,165,233,0.15)]'
           : 'bg-background-elevated border-border-subtle hover:border-border-default hover:-translate-y-0.5'
@@ -61,7 +56,7 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
           <div className="text-xs text-text-tertiary truncate mt-0.5">{scene.text_content}</div>
         )}
       </div>
-      <button
+      <span
         className={clsx(
           'p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity',
           isSelected ? 'text-brand-400 hover:bg-brand-900/40' : 'text-text-tertiary hover:text-content-primary hover:bg-background-hover'
@@ -70,10 +65,9 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
           e.stopPropagation();
           onClick?.(scene.id);
         }}
-        aria-label="编辑场景"
       >
         <Pencil className="w-3.5 h-3.5" />
-      </button>
-    </div>
+      </span>
+    </button>
   );
 }
