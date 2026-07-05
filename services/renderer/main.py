@@ -31,6 +31,11 @@ class HyperFramesRequest(BaseModel):
     fps: int = 30
 
 
+class RemotionRequest(BaseModel):
+    composition_path: str
+    output_path: str
+
+
 def _relative_url(abs_path: str) -> str:
     abs_path = os.path.abspath(abs_path)
     if os.path.commonpath([abs_path, ASSETS_DIR]) != ASSETS_DIR:
@@ -81,3 +86,25 @@ def render_hyperframes(req: HyperFramesRequest):
         return {"success": False, "output_url": None, "html_output_url": _relative_url(req.html_path), "error": "Render timed out"}
     except FileNotFoundError:
         return {"success": False, "output_url": None, "html_output_url": _relative_url(req.html_path), "error": "HyperFrames CLI not found"}
+
+
+@app.post("/render/remotion")
+def render_remotion(req: RemotionRequest):
+    if not _is_under_assets(req.composition_path) or not _is_under_assets(req.output_path):
+        raise HTTPException(status_code=400, detail="Paths must be under ASSETS_DIR")
+
+    os.makedirs(os.path.dirname(req.output_path), exist_ok=True)
+    remotion_dir = os.path.join(os.path.dirname(__file__), "remotion")
+
+    cmd = [
+        "npx", "remotion", "render", "Generic", req.output_path,
+        "--props", req.composition_path,
+        "--concurrency", "1",
+    ]
+    try:
+        result = subprocess.run(cmd, cwd=remotion_dir, capture_output=True, text=True, timeout=300, check=False)
+        if result.returncode != 0:
+            return {"success": False, "output_url": None, "error": result.stderr or result.stdout or "Remotion render failed"}
+        return {"success": True, "output_url": _relative_url(req.output_path), "error": None}
+    except Exception as exc:
+        return {"success": False, "output_url": None, "error": str(exc)}

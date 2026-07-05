@@ -1,10 +1,12 @@
 from app.rendering.engine_selector import select_engine
 from app.rendering.providers.hyperframes import HyperFramesProvider
+from app.rendering.providers.remotion import RemotionProvider
 from app.rendering.providers.mock import MockProvider
 from app.rendering.provider import RenderRequest, RenderResult
 
 PROVIDERS = [
     HyperFramesProvider(),
+    RemotionProvider(),
     MockProvider(),
 ]
 
