@@ -39,10 +39,10 @@ def test_render_hyperframes_writes_output(sample_html, assets_dir):
     assert data["html_output_url"] == "/api/static/test.html"
     mock_run.assert_called_once()
     args, kwargs = mock_run.call_args
-    assert "--duration" in args[0]
-    assert "5" in args[0]
-    assert "--fps" in args[0]
-    assert "30" in args[0]
+    assert "--duration" not in args[0]
+    assert "--fps" not in args[0]
+    assert sample_html in args[0]
+    assert output_path in args[0]
 
 
 def test_render_hyperframes_rejects_paths_outside_assets(sample_html, assets_dir):

@@ -21,5 +21,4 @@ class MockProvider(RenderProvider):
         return RenderResult(
             success=True,
             output_url="/api/static/sample.mp4",
-            html_output_url="/api/static/index.html",
         )

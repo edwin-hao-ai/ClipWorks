@@ -7,7 +7,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
-from app.agent import plan_video, build_composition
+from app.agent import plan_video, build_composition, generate_html
+from app.config import ASSETS_DIR
 from app.database import get_db, SessionLocal
 from app.models import Project, RenderJob, User, Track, Clip
 from app.rendering.provider import RenderRequest
@@ -123,6 +124,18 @@ def _collect_raw_assets(project: Project) -> list[str]:
     return paths
 
 
+def _write_project_html(project_id: str, composition: dict, assets: dict) -> tuple[str, str]:
+    """Generate and persist the project preview HTML, returning path and URL."""
+    project_dir = os.path.join(ASSETS_DIR, project_id)
+    os.makedirs(project_dir, exist_ok=True)
+    html_path = os.path.join(project_dir, "index.html")
+    html = generate_html(composition, assets)
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    rel = os.path.relpath(html_path, ASSETS_DIR).replace(os.path.sep, "/")
+    return html_path, f"/api/static/{rel}"
+
+
 async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str], engine: Optional[str]):
     db = SessionLocal()
     try:
@@ -134,6 +147,11 @@ async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str]
         comp_json = _maybe_plan_and_persist(project, prompt, db)
         assets = _build_assets(project, db)
         raw_assets = _collect_raw_assets(project)
+
+        html_path, html_url = _write_project_html(project_id, comp_json, assets)
+        job.html_output_path = html_path
+        job.html_output_url = html_url
+        db.commit()
 
         request = RenderRequest(
             engine=engine,
@@ -148,7 +166,8 @@ async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str]
             job.status = "completed"
             job.progress = 100
             job.output_url = result.output_url
-            job.html_output_url = result.html_output_url
+            if result.html_output_url:
+                job.html_output_url = result.html_output_url
             job.completed_at = datetime.now(timezone.utc)
             project.status = "ready"
         else:

@@ -80,10 +80,6 @@ def render_hyperframes(req: HyperFramesRequest):
         "npx",
         "hyperframes",
         "render",
-        "--duration",
-        str(req.duration),
-        "--fps",
-        str(req.fps),
         req.html_path,
         req.output_path,
     ]
