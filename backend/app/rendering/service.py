@@ -8,13 +8,12 @@ PROVIDERS = [
     MockProvider(),
 ]
 
-PROVIDER_MAP = {p.name: p for p in PROVIDERS}
-
 
 class RenderService:
     async def render(self, job, project, request: RenderRequest) -> RenderResult:
         engine = request.engine or select_engine(request)
-        ordered = [PROVIDER_MAP[engine]] if engine in PROVIDER_MAP else []
+        provider_map = {p.name: p for p in PROVIDERS}
+        ordered = [provider_map[engine]] if engine in provider_map else []
         ordered += [p for p in PROVIDERS if p.name != engine and p.can_handle(request)]
 
         last_error = None
