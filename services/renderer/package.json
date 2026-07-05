@@ -1,0 +1,11 @@
+{
+  "name": "clipworks-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "hyperframes": "latest",
+    "remotion": "4.0.0",
+    "@remotion/cli": "4.0.0",
+    "@remotion/player": "4.0.0"
+  }
+}
