@@ -1,5 +1,3 @@
-import { Config } from "remotion";
+import { Config } from "@remotion/cli/config";
 
-export const Config: Config = {
-  ffmpegOverride: () => undefined,
-};
+Config.setVideoCodec("h264");

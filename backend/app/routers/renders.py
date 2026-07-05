@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
@@ -113,6 +113,16 @@ def _build_assets(project: Project, db: Session) -> dict:
     return assets
 
 
+def _collect_raw_assets(project: Project) -> list[str]:
+    """Collect absolute paths of uploaded video assets for the video-use engine."""
+    paths = []
+    for asset in project.assets:
+        if asset.type == "video" and asset.local_path:
+            abs_path = os.path.abspath(asset.local_path)
+            paths.append(abs_path)
+    return paths
+
+
 async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str], engine: Optional[str]):
     db = SessionLocal()
     try:
@@ -123,11 +133,13 @@ async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str]
 
         comp_json = _maybe_plan_and_persist(project, prompt, db)
         assets = _build_assets(project, db)
+        raw_assets = _collect_raw_assets(project)
 
         request = RenderRequest(
             engine=engine,
             composition=comp_json,
             assets=assets,
+            raw_assets=raw_assets,
             user_prompt=prompt,
             source_url=project.source_url,
         )
@@ -137,7 +149,7 @@ async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str]
             job.progress = 100
             job.output_url = result.output_url
             job.html_output_url = result.html_output_url
-            job.completed_at = datetime.utcnow()
+            job.completed_at = datetime.now(timezone.utc)
             project.status = "ready"
         else:
             job.status = "failed"

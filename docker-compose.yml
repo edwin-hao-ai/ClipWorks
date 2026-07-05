@@ -20,6 +20,7 @@ services:
     build: ./services/renderer
     environment:
       - ASSETS_DIR=/app/data/assets
+      - REMOTION_DISABLE_CHROMIUM_SANDBOX=true
     volumes:
       - ./data/assets:/app/data/assets
     ports:
