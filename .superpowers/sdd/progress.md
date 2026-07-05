@@ -12,3 +12,6 @@
 - Task 4: complete (review clean after fixes)
 - Task 5: complete (commits 87f68fd..65427d3, review clean)
 - Task 6: complete (review clean)
+- Task 6: complete (commits 65427d3..e9734d6, review clean after fix)
+- Task 7: complete (commits e9734d6..8e8429f, review clean after fix)
+- Task 8: complete (commits 8e8429f..a96c819, review clean after fix)

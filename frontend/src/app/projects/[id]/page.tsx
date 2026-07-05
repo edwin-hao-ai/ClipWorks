@@ -33,6 +33,8 @@ export default function ProjectWorkspacePage() {
   const [job, setJob] = useState<RenderJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,16 +112,39 @@ export default function ProjectWorkspacePage() {
               {/* Left: Agent + Scenes */}
               <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
                 {project.status === 'draft' && (
-                  <button
-                    onClick={async () => {
-                      await api.post(`/projects/${project.id}/renders/agent-generate`, { prompt: project.title });
-                      setProject({ ...project, status: 'generating' });
-                    }}
-                    className="w-full bg-brand-600 hover:bg-brand-500 text-white py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    开始生成视频
-                  </button>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={async () => {
+                        setIsGenerating(true);
+                        setGenerationError(null);
+                        try {
+                          await api.post(`/projects/${project.id}/renders/agent-generate`, { prompt: project.title });
+                          setProject({ ...project, status: 'generating' });
+                        } catch (err) {
+                          setGenerationError(err instanceof Error ? err.message : '生成失败，请重试');
+                        } finally {
+                          setIsGenerating(false);
+                        }
+                      }}
+                      disabled={isGenerating}
+                      className="w-full"
+                    >
+                      {isGenerating ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          生成中…
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" />
+                          开始生成视频
+                        </span>
+                      )}
+                    </Button>
+                    {generationError && (
+                      <p className="text-sm text-error text-center">{generationError}</p>
+                    )}
+                  </div>
                 )}
                 <AgentChat
                   projectId={project.id}
