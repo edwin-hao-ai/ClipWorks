@@ -20,6 +20,7 @@ class AgentChatPayload(BaseModel):
     message: str
     scene_id: Optional[str] = None
     render: bool = True
+    engine: Optional[str] = None
 
 
 def _require_project(project_id: str, user: User, db: Session) -> Project:
@@ -109,7 +110,7 @@ def chat_with_agent(
         db.add(job)
         db.commit()
         db.refresh(job)
-        background_tasks.add_task(render_video_task, job.id, project_id)
+        background_tasks.add_task(render_video_task, job.id, project_id, engine=payload.engine)
 
     return {
         "reply": reply,
