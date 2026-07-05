@@ -33,7 +33,7 @@ export function Pipeline({ steps, currentStepIndex, currentDescription }: Pipeli
                   'w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-300',
                   done && 'border-success bg-background-surface text-success',
                   active && 'border-brand-500 bg-brand-900/30 text-brand-400 shadow-[0_0_16px_rgba(14,165,233,0.25)]',
-                  !done && !active && 'border-border-default bg-background-surface text-text-tertiary'
+                  !done && !active && 'border-border-default bg-background-surface text-content-tertiary'
                 )}
               >
                 <Icon className={clsx('w-4 h-4', active && 'animate-spin')} />
@@ -43,7 +43,7 @@ export function Pipeline({ steps, currentStepIndex, currentDescription }: Pipeli
                   'text-xs text-center',
                   done && 'text-success',
                   active && 'text-brand-400',
-                  !done && !active && 'text-text-tertiary'
+                  !done && !active && 'text-content-tertiary'
                 )}
               >
                 {step.label}
@@ -55,7 +55,7 @@ export function Pipeline({ steps, currentStepIndex, currentDescription }: Pipeli
       {currentDescription && (
         <div className="mt-4 bg-background-elevated border border-border-subtle rounded-lg p-3 flex items-center gap-3">
           <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
-          <span className="text-sm text-text-secondary">{currentDescription}</span>
+          <span className="text-sm text-content-secondary">{currentDescription}</span>
         </div>
       )}
     </div>

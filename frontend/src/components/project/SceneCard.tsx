@@ -49,17 +49,17 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-content-primary truncate">{scene.name}</div>
-        <div className="text-xs text-text-secondary mt-0.5">
+        <div className="text-xs text-content-secondary mt-0.5">
           {start} - {end}
         </div>
         {scene.text_content && (
-          <div className="text-xs text-text-tertiary truncate mt-0.5">{scene.text_content}</div>
+          <div className="text-xs text-content-tertiary truncate mt-0.5">{scene.text_content}</div>
         )}
       </div>
       <span
         className={clsx(
           'p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity',
-          isSelected ? 'text-brand-400 hover:bg-brand-900/40' : 'text-text-tertiary hover:text-content-primary hover:bg-background-hover'
+          isSelected ? 'text-brand-400 hover:bg-brand-900/40' : 'text-content-tertiary hover:text-content-primary hover:bg-background-hover'
         )}
       >
         <Pencil className="w-3.5 h-3.5" />
