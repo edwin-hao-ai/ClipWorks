@@ -22,7 +22,6 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
 
   return (
     <div
-      role="button"
       tabIndex={0}
       onClick={() => onClick?.(scene.id)}
       onKeyDown={(e) => {
