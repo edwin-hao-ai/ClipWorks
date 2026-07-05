@@ -1,7 +1,7 @@
+import asyncio
 import logging
 import os
 import shutil
-import subprocess
 import time
 from datetime import datetime
 from typing import Optional
@@ -10,9 +10,11 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 
 from app.agent import plan_video, build_composition, generate_html
-from app.config import ASSETS_DIR, HYPERFRAMES_CMD
+from app.config import ASSETS_DIR
 from app.database import get_db, SessionLocal
 from app.models import Project, RenderJob, User
+from app.rendering.provider import RenderRequest
+from app.rendering.service import RenderService
 from app.routers.auth import get_current_user
 from app.routers.compositions import build_composition_json
 from app.services.assets import resolve_image_asset, persist_asset
@@ -57,31 +59,6 @@ def _write_project_files(project_id: str, html: str) -> tuple[str, str]:
     return html_path, output_path
 
 
-def _run_hyperframes_render(html_path: str, output_path: str) -> bool:
-    """Try to render HTML to MP4 using HyperFrames CLI. Return True on success."""
-    cmd_parts = HYPERFRAMES_CMD.split()
-    try:
-        cmd = cmd_parts + ["render", html_path, output_path]
-        logger.info("Running HyperFrames render: %s", " ".join(cmd))
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
-        if result.returncode == 0 and os.path.exists(output_path):
-            return True
-        logger.warning("HyperFrames render failed: %s", result.stderr or result.stdout)
-    except subprocess.TimeoutExpired:
-        logger.warning("HyperFrames render timed out")
-    except FileNotFoundError:
-        logger.warning("HyperFrames CLI (npx) not found; Node may not be installed")
-    except Exception as exc:
-        logger.warning("HyperFrames render error: %s", exc)
-    return False
-
-
 def _mock_render(job: RenderJob, project: Project, db: Session):
     """Simulate a render for demo/fallback purposes."""
     job.status = "running"
@@ -106,7 +83,7 @@ def _mock_render(job: RenderJob, project: Project, db: Session):
         db.commit()
 
 
-def _agent_render(job: RenderJob, project: Project, db: Session, prompt: Optional[str] = None):
+async def _agent_render(job: RenderJob, project: Project, db: Session, prompt: Optional[str] = None):
     """Run the real AI pipeline: plan -> compose -> HTML -> HyperFrames (with fallback)."""
     job.status = "running"
     db.commit()
@@ -168,9 +145,16 @@ def _agent_render(job: RenderJob, project: Project, db: Session, prompt: Optiona
         job.html_output_path = html_path
         db.commit()
 
-        rendered = _run_hyperframes_render(html_path, output_path)
-        if rendered:
-            job.output_url = f"/api/static/{project.id}/output.mp4"
+        request = RenderRequest(
+            composition=comp_json,
+            assets=assets,
+            user_prompt=prompt,
+            source_url=project.source_url,
+        )
+        result = await RenderService().render(job, project, request)
+        if result.success:
+            job.output_url = result.output_url
+            job.html_output_url = result.html_output_url
             job.output_path = output_path
             job.status = "completed"
             job.progress = 100
@@ -178,13 +162,8 @@ def _agent_render(job: RenderJob, project: Project, db: Session, prompt: Optiona
             project.status = "ready"
         else:
             # Fallback: keep HTML preview and use sample MP4 so UI stays usable
-            job.output_url = "/api/static/sample.mp4"
-            job.output_path = None
-            job.status = "completed"
-            job.progress = 100
-            job.completed_at = datetime.utcnow()
-            project.status = "ready"
-            job.error_message = "HyperFrames render unavailable; HTML preview generated."
+            _mock_render(job, project, db)
+            job.error_message = result.error_message or "Render failed"
         db.commit()
     except Exception as exc:
         logger.exception("Agent render failed")
@@ -192,7 +171,7 @@ def _agent_render(job: RenderJob, project: Project, db: Session, prompt: Optiona
         _mock_render(job, project, db)
 
 
-def render_video_task(job_id: str, project_id: str, prompt: Optional[str] = None):
+async def _render_video_task(job_id: str, project_id: str, prompt: Optional[str] = None):
     db = SessionLocal()
     try:
         job = db.query(RenderJob).filter(RenderJob.id == job_id).first()
@@ -204,9 +183,13 @@ def render_video_task(job_id: str, project_id: str, prompt: Optional[str] = None
         if not project.source_url and not prompt:
             _mock_render(job, project, db)
         else:
-            _agent_render(job, project, db, prompt=prompt)
+            await _agent_render(job, project, db, prompt=prompt)
     finally:
         db.close()
+
+
+def render_video_task(job_id: str, project_id: str, prompt: Optional[str] = None):
+    asyncio.run(_render_video_task(job_id, project_id, prompt))
 
 
 def mock_render_task(job_id: str, project_id: str):
