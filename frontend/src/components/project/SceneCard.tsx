@@ -22,7 +22,15 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onClick?.(scene.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.(scene.id);
+        }
+      }}
       className={clsx(
         'group flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all duration-200',
         isSelected

@@ -18,7 +18,7 @@ export function Pipeline({ steps, currentStepIndex, currentDescription }: Pipeli
         <div
           className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-success to-brand-500 -translate-y-1/2 -z-10 transition-all duration-500"
           style={{
-            width: `${Math.max(0, Math.min(100, (currentStepIndex / (steps.length - 1)) * 100))}%`,
+            width: `${steps.length <= 1 ? 0 : Math.max(0, Math.min(100, (currentStepIndex / (steps.length - 1)) * 100))}%`,
           }}
         />
         {steps.map((step, idx) => {
