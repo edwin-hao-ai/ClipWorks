@@ -4,9 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.agent import modify_composition
+from app.agent import modify_video
 from app.database import get_db
-from app.models import Project, User
+from app.models import Project, User, RenderJob
 from app.routers.auth import get_current_user
 from app.routers.compositions import build_composition_json
 from app.routers.renders import render_video_task
@@ -22,6 +22,35 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
     if project.user_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized for this project")
     return project
+
+
+def _persist_composition(project, comp_json, db):
+    from app.models import Track as TrackModel, Clip as ClipModel
+    for track in project.composition.tracks:
+        db.delete(track)
+    db.flush()
+    for t_data in comp_json.get("tracks", []):
+        track = TrackModel(
+            composition_id=project.composition.id,
+            type=t_data["type"],
+            index=t_data["index"],
+            name=t_data.get("name"),
+        )
+        db.add(track)
+        db.flush()
+        for c_data in t_data.get("clips", []):
+            clip = ClipModel(
+                track_id=track.id,
+                asset_id=c_data.get("asset_id"),
+                start_time=c_data.get("start_time", 0),
+                duration=c_data.get("duration", 5),
+                position=c_data.get("position", {}),
+                style=c_data.get("style", {}),
+                text_content=c_data.get("text_content"),
+            )
+            db.add(clip)
+    db.commit()
+    db.refresh(project)
 
 
 @router.post("/chat")
@@ -42,47 +71,26 @@ def chat_with_agent(
     if not project.composition:
         raise HTTPException(status_code=404, detail="Composition not found")
 
+    scene_id = payload.get("scene_id")
+    should_render = payload.get("render", True)
     current_composition = build_composition_json(project.composition)
 
     try:
-        result = modify_composition(current_composition, message)
+        updated = modify_video(current_composition, message, scene_id=scene_id)
     except Exception as exc:
         logger.exception("Agent chat modification failed")
         raise HTTPException(status_code=500, detail=f"Agent failed: {exc}")
 
-    updated = result.get("composition")
     if not updated or not isinstance(updated, dict):
         raise HTTPException(status_code=500, detail="Agent returned invalid composition")
 
-    # Persist updated composition
-    from app.models import Track, Clip, RenderJob
-    for track in project.composition.tracks:
-        db.delete(track)
-    db.flush()
-    for t_data in updated.get("tracks", []):
-        track = Track(
-            composition_id=project.composition.id,
-            type=t_data["type"],
-            index=t_data["index"],
-            name=t_data.get("name"),
-        )
-        db.add(track)
-        db.flush()
-        for c_data in t_data.get("clips", []):
-            clip = Clip(
-                track_id=track.id,
-                asset_id=c_data.get("asset_id"),
-                start_time=c_data.get("start_time", 0),
-                duration=c_data.get("duration", 5),
-                position=c_data.get("position", {}),
-                style=c_data.get("style", {}),
-                text_content=c_data.get("text_content"),
-            )
-            db.add(clip)
-    db.commit()
+    _persist_composition(project, updated, db)
+
+    reply = f"已应用修改：{message}"
+    if scene_id:
+        reply = f"已针对场景调整：{message}"
 
     # Optionally trigger re-render in the background
-    should_render = payload.get("render", True)
     job = None
     if should_render:
         project.status = "generating"
@@ -94,7 +102,7 @@ def chat_with_agent(
         background_tasks.add_task(render_video_task, job.id, project_id)
 
     return {
-        "reply": result.get("reply", "Updated the video based on your request."),
+        "reply": reply,
         "composition": build_composition_json(project.composition),
         "job_id": job.id if job else None,
     }
