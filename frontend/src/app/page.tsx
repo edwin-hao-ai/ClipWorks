@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
+import { clsx } from 'clsx';
 import { LaunchNav } from '@/components/layout/LaunchNav';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
@@ -135,7 +136,7 @@ function RecentProjects() {
             href={`/projects/${p.id}`}
             className="min-w-[200px] bg-background-surface border border-border-subtle rounded-lg p-3 hover:border-border-default transition-colors"
           >
-            <div className={`aspect-video rounded-md bg-gradient-to-br ${p.gradient} mb-2`} />
+            <div className={clsx('aspect-video rounded-md bg-gradient-to-br mb-2', p.gradient)} />
             <div className="text-sm font-medium text-content-primary truncate">{p.title}</div>
             <div className="flex items-center justify-between mt-1">
               <span className="text-xs text-text-tertiary">{p.time}</span>
