@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 from app.routers import auth, projects, compositions, assets, renders, agent
 from app.database import get_db, list_tables
 from app import config  # loads .env at startup
+import logging
 import os
 import shutil
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ClipWorks API", version="0.1.0")
 
@@ -36,6 +39,11 @@ app.include_router(compositions.router)
 app.include_router(assets.router)
 app.include_router(renders.router)
 app.include_router(agent.router)
+
+
+@app.on_event("startup")
+def startup_event():
+    logger.info("Renderer URL: %s", config.RENDERER_URL)
 
 
 @app.get("/health")

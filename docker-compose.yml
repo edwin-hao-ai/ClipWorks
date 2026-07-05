@@ -16,6 +16,15 @@ services:
     ports:
       - "6379:6379"
 
+  renderer:
+    build: ./services/renderer
+    environment:
+      - ASSETS_DIR=/app/data/assets
+    volumes:
+      - ./data/assets:/app/data/assets
+    ports:
+      - "8001:8000"
+
   backend:
     build: ./backend
     env_file:
@@ -23,12 +32,14 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://clipworks:clipworks@postgres:5432/clipworks
       REDIS_URL: redis://redis:6379/0
+      RENDERER_URL: http://renderer:8000
     volumes:
       - ./backend:/app
       - ./data/assets:/app/data/assets
     depends_on:
       - postgres
       - redis
+      - renderer
     ports:
       - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
