@@ -61,10 +61,6 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
           'p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity',
           isSelected ? 'text-brand-400 hover:bg-brand-900/40' : 'text-text-tertiary hover:text-content-primary hover:bg-background-hover'
         )}
-        onClick={(e) => {
-          e.stopPropagation();
-          onClick?.(scene.id);
-        }}
       >
         <Pencil className="w-3.5 h-3.5" />
       </span>
