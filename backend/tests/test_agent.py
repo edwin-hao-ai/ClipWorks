@@ -32,7 +32,7 @@ def test_modify_video_fallback_scene_by_clip_id():
     assert result["tracks"][0]["clips"][0]["style"]["fontSize"] == 96
 
 
-def test_modify_video_fallback_scene_not_found_no_global_side_effect():
+def test_modify_video_fallback_scene_not_found_falls_back_to_global():
     comp = {
         "duration": 30,
         "tracks": [{
