@@ -30,7 +30,7 @@
 
 ## Baseline
 - Branch: main
-- Baseline commit: ed25b72
+- Baseline commit: 0396c34
 - Plan: docs/superpowers/plans/2026-07-05-multi-engine-render.md
 
 ## Tasks
