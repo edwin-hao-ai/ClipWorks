@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from app.rendering.provider import RenderRequest
 from app.rendering.providers.video_use import VideoUseProvider
 
@@ -23,10 +23,10 @@ async def test_video_use_provider_calls_renderer(monkeypatch, tmp_path):
     mock_post.return_value = mock_response
     monkeypatch.setattr("httpx.AsyncClient.post", mock_post)
 
-    with patch("app.config.ASSETS_DIR", str(tmp_path)):
-        result = await provider.render(
-            MagicMock(), project, RenderRequest(composition={}, assets={}, raw_assets=["/tmp/a.mp4"], user_prompt="cut")
-        )
+    monkeypatch.setattr("app.rendering.providers.video_use.ASSETS_DIR", str(tmp_path))
+    result = await provider.render(
+        MagicMock(), project, RenderRequest(composition={}, assets={}, raw_assets=["/tmp/a.mp4"], user_prompt="cut")
+    )
 
     assert result.success is True
     assert result.output_url == "/api/static/proj-1/output.mp4"
