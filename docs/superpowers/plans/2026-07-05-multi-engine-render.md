@@ -361,11 +361,11 @@ from typing import Optional, Protocol
 
 @dataclass
 class RenderRequest:
+    composition: dict
+    assets: dict
     engine: Optional[str] = None
     user_prompt: Optional[str] = None
     source_url: Optional[str] = None
-    composition: dict
-    assets: dict
     raw_assets: Optional[list[str]] = None
 
 
@@ -395,6 +395,7 @@ import logging
 from typing import Optional
 import httpx
 
+from app.agent import generate_html
 from app.config import ASSETS_DIR, RENDERER_URL
 from app.rendering.provider import RenderProvider, RenderRequest, RenderResult
 
@@ -413,9 +414,9 @@ class HyperFramesProvider(RenderProvider):
         html_path = os.path.join(project_dir, "index.html")
         output_path = os.path.join(project_dir, "output.mp4")
 
-        # The caller is responsible for writing HTML; this provider needs it on disk.
-        if not os.path.exists(html_path):
-            return RenderResult(success=False, error_message="HTML file not found for HyperFrames render")
+        html = generate_html(request.composition, request.assets)
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
 
         payload = {
             "html_path": html_path,
