@@ -3,26 +3,27 @@ import subprocess
 from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
-from main import app, ASSETS_DIR
+from main import app
 
 client = TestClient(app)
 
 
 @pytest.fixture
-def sample_html(tmp_path):
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    html_path = os.path.join(ASSETS_DIR, "test.html")
+def assets_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr("main.ASSETS_DIR", str(tmp_path))
+    return str(tmp_path)
+
+
+@pytest.fixture
+def sample_html(assets_dir):
+    html_path = os.path.join(assets_dir, "test.html")
     with open(html_path, "w") as f:
         f.write("<html><body>hi</body></html>")
-    yield html_path
-    try:
-        os.remove(html_path)
-    except FileNotFoundError:
-        pass
+    return html_path
 
 
-def test_render_hyperframes_writes_output(sample_html):
-    output_path = os.path.join(ASSETS_DIR, "test.mp4")
+def test_render_hyperframes_writes_output(sample_html, assets_dir):
+    output_path = os.path.join(assets_dir, "test.mp4")
 
     with patch("main.subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
@@ -44,8 +45,8 @@ def test_render_hyperframes_writes_output(sample_html):
     assert "30" in args[0]
 
 
-def test_render_hyperframes_rejects_paths_outside_assets(sample_html):
-    output_path = os.path.join(ASSETS_DIR, "test.mp4")
+def test_render_hyperframes_rejects_paths_outside_assets(sample_html, assets_dir):
+    output_path = os.path.join(assets_dir, "test.mp4")
     outside_path = "/tmp/outside.html"
 
     response = client.post(
@@ -57,8 +58,8 @@ def test_render_hyperframes_rejects_paths_outside_assets(sample_html):
     assert "Paths must be under ASSETS_DIR" in response.json()["detail"]
 
 
-def test_render_hyperframes_timeout(sample_html):
-    output_path = os.path.join(ASSETS_DIR, "test.mp4")
+def test_render_hyperframes_timeout(sample_html, assets_dir):
+    output_path = os.path.join(assets_dir, "test.mp4")
 
     with patch("main.subprocess.run") as mock_run:
         mock_run.side_effect = subprocess.TimeoutExpired(cmd=["npx"], timeout=300)
@@ -74,8 +75,8 @@ def test_render_hyperframes_timeout(sample_html):
     assert data["error"] == "Render timed out"
 
 
-def test_render_hyperframes_missing_cli(sample_html):
-    output_path = os.path.join(ASSETS_DIR, "test.mp4")
+def test_render_hyperframes_missing_cli(sample_html, assets_dir):
+    output_path = os.path.join(assets_dir, "test.mp4")
 
     with patch("main.subprocess.run") as mock_run:
         mock_run.side_effect = FileNotFoundError()
@@ -91,8 +92,8 @@ def test_render_hyperframes_missing_cli(sample_html):
     assert data["error"] == "HyperFrames CLI not found"
 
 
-def test_render_hyperframes_nonzero_exit(sample_html):
-    output_path = os.path.join(ASSETS_DIR, "test.mp4")
+def test_render_hyperframes_nonzero_exit(sample_html, assets_dir):
+    output_path = os.path.join(assets_dir, "test.mp4")
 
     with patch("main.subprocess.run") as mock_run:
         mock_run.return_value.returncode = 1

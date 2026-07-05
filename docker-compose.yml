@@ -24,6 +24,12 @@ services:
       - ./data/assets:/app/data/assets
     ports:
       - "8001:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   backend:
     build: ./backend
@@ -37,9 +43,12 @@ services:
       - ./backend:/app
       - ./data/assets:/app/data/assets
     depends_on:
-      - postgres
-      - redis
-      - renderer
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      renderer:
+        condition: service_healthy
     ports:
       - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

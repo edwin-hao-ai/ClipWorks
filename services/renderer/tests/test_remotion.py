@@ -1,15 +1,22 @@
 import os
 from unittest.mock import patch
+import pytest
 from fastapi.testclient import TestClient
-from main import app, ASSETS_DIR
+from main import app
 
 client = TestClient(app)
 
 
-def test_render_remotion_writes_output():
-    os.makedirs(ASSETS_DIR, exist_ok=True)
-    comp_path = os.path.join(ASSETS_DIR, "comp.json")
-    output_path = os.path.join(ASSETS_DIR, "remotion.mp4")
+@pytest.fixture
+def assets_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr("main.ASSETS_DIR", str(tmp_path))
+    return str(tmp_path)
+
+
+def test_render_remotion_writes_output(assets_dir):
+    os.makedirs(assets_dir, exist_ok=True)
+    comp_path = os.path.join(assets_dir, "comp.json")
+    output_path = os.path.join(assets_dir, "remotion.mp4")
     with open(comp_path, "w") as f:
         f.write('{"duration": 10, "tracks": []}')
 
