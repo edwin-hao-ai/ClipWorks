@@ -46,3 +46,19 @@
 - Task 10: complete — Final review fixes (commits c653e93..ff0e7f4): restore project-level HTML preview on fallback engines, remove unverified HyperFrames CLI duration/fps flags
 
 - HyperFrames / Node.js / Remotion / video-use multi-engine rendering: complete (final review Approved with minor notes)
+
+---
+
+# P0: Real Video Output Progress
+
+## Baseline
+- Branch: p0-real-video-output
+- Baseline commit: 0c3147c
+- Plan: docs/superpowers/plans/2026-07-05-p0-real-video-output.md
+
+## Tasks
+- Task 1: complete — Install Celery and configure async queue (commit 5e8c807)
+- Task 2: pending — Migrate render jobs to Celery
+- Task 3: pending — Stabilize Remotion real MP4 rendering
+- Task 4: pending — Frontend real video preview and download
+- Task 5: pending — End-to-end integration verification
