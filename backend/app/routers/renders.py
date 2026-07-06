@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -24,7 +24,6 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
 @router.post("/generate", status_code=202)
 def generate_video(
     project_id: str,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -46,7 +45,6 @@ def generate_video(
 def agent_generate_video(
     project_id: str,
     data: dict,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

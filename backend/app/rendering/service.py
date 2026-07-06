@@ -17,6 +17,12 @@ PROVIDERS = [
 
 class RenderService:
     def render(self, job, project, request: RenderRequest) -> RenderResult:
+        """Synchronous entry point that runs the async render pipeline via asyncio.run().
+
+        This method is intentionally synchronous so it can be called directly from
+        synchronous contexts such as Celery tasks. It internally executes the async
+        provider chain with asyncio.run().
+        """
         return asyncio.run(self._render_async(job, project, request))
 
     async def _render_async(self, job, project, request: RenderRequest) -> RenderResult:

@@ -90,10 +90,11 @@ def _build_assets(project: Project, db) -> dict:
 
 
 def _collect_raw_assets(project: Project) -> list[str]:
+    import os
     paths = []
     for asset in project.assets:
         if asset.type == "video" and asset.local_path:
-            paths.append(asset.local_path)
+            paths.append(os.path.abspath(asset.local_path))
     return paths
 
 
@@ -111,6 +112,8 @@ def _write_project_html(project_id: str, composition: dict, assets: dict) -> tup
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
 def render_video_task(self, job_id: str, project_id: str, prompt: Optional[str] = None, engine: Optional[str] = None):
+    job = None
+    project = None
     db = SessionLocal()
     try:
         job = db.query(RenderJob).filter(RenderJob.id == job_id).first()
