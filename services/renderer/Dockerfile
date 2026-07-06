@@ -10,6 +10,7 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     ffmpeg \
     python3 \
     python3-pip \
+    python3-venv \
     libnss3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
