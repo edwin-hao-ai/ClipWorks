@@ -12,7 +12,7 @@ import { PropertyPanel } from '@/components/project/PropertyPanel';
 import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
 import { Composition, Project, RenderJob, Scene } from '@/lib/types';
-import { api } from '@/lib/api';
+import { api, API_URL } from '@/lib/api';
 import { Sparkles } from 'lucide-react';
 import { getDemoProjectById } from '@/lib/demoData';
 
@@ -111,6 +111,12 @@ export default function ProjectWorkspacePage() {
   const previewFormat = (
     ['16:9', '9:16', '1:1'].includes(project?.target_format || '') ? project?.target_format : '16:9'
   ) as '16:9' | '9:16' | '1:1';
+
+  const toAbsoluteUrl = (url?: string | null) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    return `${API_URL}${url}`;
+  };
 
   const handlePropertyChange = async (changes: Partial<Project> | Partial<Scene>) => {
     if (!project) return;
@@ -248,8 +254,8 @@ export default function ProjectWorkspacePage() {
               <div className="lg:col-span-6 flex flex-col gap-4 min-h-0 min-h-[360px]">
                 <div className="flex-1 bg-black rounded-lg overflow-hidden min-h-0">
                   <PreviewPlayer
-                    outputUrl={latestJob?.output_url || null}
-                    htmlOutputUrl={latestJob?.html_output_url || null}
+                    outputUrl={toAbsoluteUrl(latestJob?.output_url)}
+                    htmlOutputUrl={toAbsoluteUrl(latestJob?.html_output_url)}
                     format={previewFormat}
                   />
                 </div>
