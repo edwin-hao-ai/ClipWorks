@@ -54,6 +54,23 @@ services:
       - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+  worker:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://clipworks:clipworks@postgres:5432/clipworks
+      REDIS_URL: redis://redis:6379/0
+      RENDERER_URL: http://renderer:8000
+    volumes:
+      - ./backend:/app
+      - ./data/assets:/app/data/assets
+    depends_on:
+      - postgres
+      - redis
+      - renderer
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=1
+
   frontend:
     build: ./frontend
     environment:
