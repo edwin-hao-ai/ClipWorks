@@ -11,7 +11,7 @@ import { PreviewPlayer } from '@/components/project/PreviewPlayer';
 import { PropertyPanel } from '@/components/project/PropertyPanel';
 import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
-import { Composition, Project, Scene } from '@/lib/types';
+import { Composition, Project, RenderJob, Scene } from '@/lib/types';
 import { api } from '@/lib/api';
 import { Sparkles } from 'lucide-react';
 import { getDemoProjectById } from '@/lib/demoData';
@@ -34,6 +34,7 @@ export default function ProjectWorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [latestJob, setLatestJob] = useState<RenderJob | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +62,33 @@ export default function ProjectWorkspacePage() {
     load();
     return () => { cancelled = true; };
   }, [id]);
+
+  // Fetch and poll the latest render job so the preview updates when rendering completes.
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchLatestJob = async () => {
+      try {
+        const jobs: RenderJob[] = await api.get(`/projects/${project.id}/renders/`);
+        if (cancelled) return;
+        const latest = jobs[0] || null;
+        setLatestJob(latest);
+        if (latest && (latest.status === 'queued' || latest.status === 'running')) {
+          timeoutId = setTimeout(fetchLatestJob, 2000);
+        }
+      } catch {
+        // Ignore polling errors to avoid breaking the workspace.
+      }
+    };
+
+    fetchLatestJob();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [project?.id, project?.status]);
 
   // TODO: replace coarse status-to-step mapping with backend RenderJob events
   // for granular, trustworthy pipeline progress (e.g. step started/finished).
@@ -219,7 +247,11 @@ export default function ProjectWorkspacePage() {
               {/* Center: Preview + Pipeline */}
               <div className="lg:col-span-6 flex flex-col gap-4 min-h-0 min-h-[360px]">
                 <div className="flex-1 bg-black rounded-lg overflow-hidden min-h-0">
-                  <PreviewPlayer videoUrl={project.latest_output_url} format={previewFormat} />
+                  <PreviewPlayer
+                    outputUrl={latestJob?.output_url || null}
+                    htmlOutputUrl={latestJob?.html_output_url || null}
+                    format={previewFormat}
+                  />
                 </div>
                 {project.status === 'generating' && (
                   <div className="bg-background-surface border border-border-subtle rounded-lg p-4">

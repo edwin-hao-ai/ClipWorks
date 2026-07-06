@@ -1,12 +1,14 @@
 import pytest
 from fastapi import HTTPException
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.agent.modifier import modify_video
 from app.routers.agent import AgentChatPayload, _persist_composition
 
 
-def test_modify_video_returns_reply_and_composition():
+@patch("app.agent.modifier.KimiClient")
+def test_modify_video_returns_reply_and_composition(mock_client_cls):
+    mock_client_cls.return_value.chat_completion_json.side_effect = Exception("LLM unavailable")
     comp = {"duration": 30, "tracks": [{"type": "text", "clips": [{"duration": 5, "style": {}}]}]}
     result = modify_video(comp, "把视频缩短一点")
     assert "reply" in result
@@ -15,13 +17,17 @@ def test_modify_video_returns_reply_and_composition():
     assert result["composition"]["duration"] < 30
 
 
-def test_modify_video_fallback_global():
+@patch("app.agent.modifier.KimiClient")
+def test_modify_video_fallback_global(mock_client_cls):
+    mock_client_cls.return_value.chat_completion_json.side_effect = Exception("LLM unavailable")
     comp = {"duration": 30, "tracks": [{"type": "text", "clips": [{"duration": 5, "style": {}}]}]}
     result = modify_video(comp, "把视频缩短一点")
     assert result["composition"]["duration"] < 30
 
 
-def test_modify_video_fallback_scene():
+@patch("app.agent.modifier.KimiClient")
+def test_modify_video_fallback_scene(mock_client_cls):
+    mock_client_cls.return_value.chat_completion_json.side_effect = Exception("LLM unavailable")
     comp = {
         "duration": 30,
         "tracks": [{
@@ -33,7 +39,9 @@ def test_modify_video_fallback_scene():
     assert result["composition"]["tracks"][0]["clips"][0]["style"]["color"] == "#ef4444"
 
 
-def test_modify_video_fallback_scene_by_clip_id():
+@patch("app.agent.modifier.KimiClient")
+def test_modify_video_fallback_scene_by_clip_id(mock_client_cls):
+    mock_client_cls.return_value.chat_completion_json.side_effect = Exception("LLM unavailable")
     comp = {
         "duration": 30,
         "tracks": [{
@@ -45,7 +53,9 @@ def test_modify_video_fallback_scene_by_clip_id():
     assert result["composition"]["tracks"][0]["clips"][0]["style"]["fontSize"] == 96
 
 
-def test_modify_video_fallback_scene_not_found_falls_back_to_global():
+@patch("app.agent.modifier.KimiClient")
+def test_modify_video_fallback_scene_not_found_falls_back_to_global(mock_client_cls):
+    mock_client_cls.return_value.chat_completion_json.side_effect = Exception("LLM unavailable")
     comp = {
         "duration": 30,
         "tracks": [{

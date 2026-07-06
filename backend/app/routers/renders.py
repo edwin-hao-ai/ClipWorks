@@ -66,6 +66,29 @@ def agent_generate_video(
     return {"job_id": job.id, "status": "queued"}
 
 
+@router.get("/", response_model=list[dict])
+def list_renders(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    project = _require_project(project_id, user, db)
+    jobs = (
+        db.query(RenderJob)
+        .filter(RenderJob.project_id == project.id)
+        .order_by(RenderJob.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": job.id,
+            "status": job.status,
+            "progress": job.progress,
+            "output_url": job.output_url,
+            "html_output_url": job.html_output_url,
+            "error_message": job.error_message,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+        }
+        for job in jobs
+    ]
+
+
 @router.get("/{job_id}")
 def get_render(job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.query(RenderJob).filter(RenderJob.id == job_id).first()

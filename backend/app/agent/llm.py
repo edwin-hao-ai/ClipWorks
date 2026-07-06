@@ -24,7 +24,7 @@ class KimiClient:
         system_prompt: str,
         user_prompt: str,
         json_mode: bool = False,
-        temperature: float = 0.7,
+        temperature: float = 1.0,
         max_retries: int = 1,
     ) -> Optional[str]:
         messages = [
@@ -53,7 +53,7 @@ class KimiClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        temperature: float = 0.7,
+        temperature: float = 1.0,
     ) -> Optional[dict]:
         content = self.chat_completion(
             system_prompt=system_prompt,
