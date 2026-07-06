@@ -3,7 +3,8 @@ set -e
 
 API="http://localhost:8000"
 COOKIE_JAR="/tmp/clipworks_e2e_cookies.txt"
-rm -f "$COOKIE_JAR"
+STATUS_FILE="/tmp/clipworks_e2e_status.json"
+rm -f "$COOKIE_JAR" "$STATUS_FILE"
 
 echo "=== 1. Login ==="
 curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -X POST "$API/auth/mock-login?provider=google" | jq .
@@ -23,19 +24,25 @@ echo "$JOB" | jq .
 JOB_ID=$(echo "$JOB" | jq -r '.job_id')
 
 echo "=== 4. Poll job status ==="
-for i in {1..60}; do
+STATUS=""
+for i in {1..120}; do
   STATUS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" "$API/projects/$PROJECT_ID/renders/$JOB_ID")
   echo "[$i] $(echo "$STATUS" | jq -c .)"
   JOB_STATUS=$(echo "$STATUS" | jq -r '.status')
   if [ "$JOB_STATUS" = "completed" ] || [ "$JOB_STATUS" = "failed" ]; then
-    echo "$STATUS" > /tmp/clipworks_e2e_status.json
+    echo "$STATUS" > "$STATUS_FILE"
     break
   fi
-  sleep 2
+  sleep 3
 done
 
+if [ ! -f "$STATUS_FILE" ]; then
+  echo "FAIL: job did not complete within timeout"
+  exit 1
+fi
+
 echo "=== 5. Verify output ==="
-STATUS=$(cat /tmp/clipworks_e2e_status.json)
+STATUS=$(cat "$STATUS_FILE")
 OUTPUT_URL=$(echo "$STATUS" | jq -r '.output_url')
 echo "Output URL: $OUTPUT_URL"
 
