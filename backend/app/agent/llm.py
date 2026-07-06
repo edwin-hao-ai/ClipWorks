@@ -14,7 +14,7 @@ class KimiClient:
         self.client = OpenAI(
             base_url=KIMI_BASE_URL,
             api_key=KIMI_API_KEY,
-            timeout=60,
+            timeout=120,
             max_retries=1,
         )
         self.model = KIMI_MODEL
