@@ -11,3 +11,4 @@ KIMI_MODEL = os.getenv("KIMI_MODEL", "moonshot-v1-8k")
 
 ASSETS_DIR = os.getenv("ASSETS_DIR", "data/assets")
 RENDERER_URL = os.getenv("RENDERER_URL", "http://localhost:8001")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
