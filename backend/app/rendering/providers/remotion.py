@@ -21,7 +21,7 @@ class RemotionProvider(RenderProvider):
         output_path = os.path.join(project_dir, "output.mp4")
 
         with open(comp_path, "w", encoding="utf-8") as f:
-            json.dump(request.composition, f, ensure_ascii=False)
+            json.dump({"composition": request.composition}, f, ensure_ascii=False)
 
         try:
             async with httpx.AsyncClient(timeout=300) as client:

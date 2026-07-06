@@ -18,7 +18,7 @@ def test_render_remotion_writes_output(assets_dir):
     comp_path = os.path.join(assets_dir, "comp.json")
     output_path = os.path.join(assets_dir, "remotion.mp4")
     with open(comp_path, "w") as f:
-        f.write('{"duration": 10, "tracks": []}')
+        f.write('{"composition": {"duration": 10, "tracks": []}}')
 
     with patch("main.subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0

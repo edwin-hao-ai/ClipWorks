@@ -1,4 +1,4 @@
-import { Composition, CalculateMetadataFunction } from "remotion";
+import { Composition, CalculateMetadataFunction, registerRoot } from "remotion";
 import { GenericComp } from "./compositions/GenericComp";
 
 interface CompositionProps {
@@ -17,7 +17,7 @@ const calculateMetadata: CalculateMetadataFunction<CompositionProps> = ({
   };
 };
 
-export const RemotionRoot: React.FC = () => {
+const RemotionRoot: React.FC = () => {
   return (
     <Composition
       id="Generic"
@@ -31,3 +31,5 @@ export const RemotionRoot: React.FC = () => {
     />
   );
 };
+
+registerRoot(RemotionRoot);

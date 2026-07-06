@@ -1,3 +1,3 @@
 import { Config } from "@remotion/cli/config";
 
-Config.setVideoCodec("h264");
+Config.setCodec("h264");

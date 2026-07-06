@@ -1,6 +1,12 @@
 FROM node:22-bookworm
 
-RUN apt-get update && apt-get install -y \
+ARG APT_MIRROR=
+ARG NPM_REGISTRY=
+RUN if [ -n "$APT_MIRROR" ]; then \
+      if [ -f /etc/apt/sources.list ]; then sed -i "s|http://deb.debian.org/debian|$APT_MIRROR|g" /etc/apt/sources.list; fi && \
+      if [ -f /etc/apt/sources.list.d/debian.sources ]; then sed -i "s|http://deb.debian.org/debian|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources; fi; \
+    fi && \
+    apt-get update && apt-get install -y -o Acquire::Retries=3 \
     ffmpeg \
     python3 \
     python3-pip \
@@ -23,14 +29,23 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi && \
+    npm install
 
 COPY requirements.txt ./
-RUN pip3 install --no-cache-dir -r requirements.txt
+ARG PIP_INDEX_URL=
+RUN if [ -n "$PIP_INDEX_URL" ]; then pip3 config set global.index-url "$PIP_INDEX_URL"; fi && \
+    pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 RUN python3 -m playwright install chromium
 
+COPY remotion ./remotion
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi && \
+    cd remotion && npm install
+
 COPY . .
+
+ENV REMOTION_DISABLE_CHROMIUM_SANDBOX=true
 
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -13,18 +13,20 @@ interface Track {
   clips: Clip[];
 }
 
-export const GenericComp: React.FC<{ composition: { duration: number; tracks: Track[] } }> = ({
+export const GenericComp: React.FC<{ composition: { duration?: number; tracks?: Track[] } }> = ({
   composition,
 }) => {
   const frame = useCurrentFrame();
-  const currentTime = frame / 30;
-  const activeClip = composition.tracks
-    .flatMap((t) => t.clips)
+  const fps = 30;
+  const currentTime = frame / fps;
+  const tracks = composition.tracks || [];
+  const activeClip = tracks
+    .flatMap((t) => t.clips || [])
     .find((c) => currentTime >= c.start_time && currentTime < c.start_time + c.duration);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" }}>
-      <div style={{ color: "#fff", fontSize: 64, textAlign: "center" }}>
+      <div style={{ color: "#fff", fontSize: 64, textAlign: "center", padding: 40 }}>
         {activeClip?.text_content || "ClipWorks"}
       </div>
     </AbsoluteFill>
