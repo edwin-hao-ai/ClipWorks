@@ -32,7 +32,7 @@
 - Consumes: `REDIS_URL` from environment
 - Produces: `celery_app` instance imported by render task worker
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_celery.py
@@ -44,7 +44,7 @@ def test_celery_app_loads():
     assert celery_app.conf.broker_url is not None
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -53,7 +53,7 @@ cd /Users/edwinhao/ClipWorks/backend
 
 Expected: `ModuleNotFoundError: No module named 'app.celery_app'`
 
-- [ ] **Step 3: Add Celery dependency**
+- [x] **Step 3: Add Celery dependency**
 
 ```toml
 # backend/pyproject.toml under [project.dependencies]
@@ -61,7 +61,7 @@ celery[redis]>=5.3.0
 redis>=5.0.0
 ```
 
-- [ ] **Step 4: Create Celery app**
+- [x] **Step 4: Create Celery app**
 
 ```python
 # backend/app/celery_app.py
@@ -89,7 +89,7 @@ celery_app.conf.update(
 )
 ```
 
-- [ ] **Step 5: Update config to expose REDIS_URL**
+- [x] **Step 5: Update config to expose REDIS_URL**
 
 ```python
 # backend/app/config.py
@@ -101,7 +101,7 @@ RENDERER_URL = os.getenv("RENDERER_URL", "http://localhost:8001")
 ASSETS_DIR = os.path.abspath(os.getenv("ASSETS_DIR", "/app/data/assets"))
 ```
 
-- [ ] **Step 6: Update docker-compose to run Celery worker**
+- [x] **Step 6: Update docker-compose to run Celery worker**
 
 ```yaml
 # docker-compose.yml add service:
@@ -123,7 +123,7 @@ ASSETS_DIR = os.path.abspath(os.getenv("ASSETS_DIR", "/app/data/assets"))
     command: celery -A app.celery_app worker --loglevel=info --concurrency=1
 ```
 
-- [ ] **Step 7: Run test to verify it passes**
+- [x] **Step 7: Run test to verify it passes**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -132,7 +132,7 @@ cd /Users/edwinhao/ClipWorks/backend
 
 Expected: PASS
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -155,7 +155,7 @@ git commit -m "feat(queue): add Celery + Redis async task setup"
 - Consumes: `RenderService().render(job, project, request)` and existing `_render_video_task` logic
 - Produces: `render_video_task.delay(job_id, project_id, prompt, engine)` Celery task
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```python
 # backend/tests/test_render_task.py
@@ -191,7 +191,7 @@ def test_render_video_task_updates_job_on_success(mock_session_local, mock_servi
     mock_session.commit.assert_called()
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -200,7 +200,7 @@ cd /Users/edwinhao/ClipWorks/backend
 
 Expected: `ModuleNotFoundError: No module named 'app.tasks.render_task'`
 
-- [ ] **Step 3: Create Celery render task**
+- [x] **Step 3: Create Celery render task**
 
 ```python
 # backend/app/tasks/__init__.py
@@ -374,7 +374,7 @@ def render_video_task(self, job_id: str, project_id: str, prompt: Optional[str] 
         db.close()
 ```
 
-- [ ] **Step 4: Update renders router to enqueue Celery task**
+- [x] **Step 4: Update renders router to enqueue Celery task**
 
 ```python
 # backend/app/routers/renders.py
@@ -388,7 +388,7 @@ from app.tasks.render_task import render_video_task
 render_video_task.delay(job.id, project_id, prompt, engine)
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -397,7 +397,7 @@ cd /Users/edwinhao/ClipWorks/backend
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -437,7 +437,7 @@ COPY services/renderer/remotion ./remotion
 RUN cd remotion && npm install
 ```
 
-- [ ] **Step 3: Update renderer main.py Remotion endpoint to return output_url on success**
+- [x] **Step 3: Update renderer main.py Remotion endpoint to return output_url on success**
 
 Current code already does this. Verify:
 
@@ -445,7 +445,7 @@ Current code already does this. Verify:
 return {"success": True, "output_url": _relative_url(req.output_path), "error": None}
 ```
 
-- [ ] **Step 4: Improve GenericComp to handle missing duration**
+- [x] **Step 4: Improve GenericComp to handle missing duration**
 
 ```tsx
 // services/renderer/remotion/src/compositions/GenericComp.tsx
@@ -485,14 +485,14 @@ export const GenericComp: React.FC<{ composition: { duration?: number; tracks?: 
 };
 ```
 
-- [ ] **Step 5: Build renderer image and run container**
+- [x] **Step 5: Build renderer image and run container**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
 docker-compose up -d --build renderer
 ```
 
-- [ ] **Step 6: Test real Remotion render via API**
+- [x] **Step 6: Test real Remotion render via API**
 
 Create a composition JSON and post to renderer:
 
@@ -509,14 +509,14 @@ curl -X POST http://localhost:8001/render/remotion \
 
 Verify `/tmp/remotion-test/output.mp4` exists and is valid video.
 
-- [ ] **Step 7: Run backend Remotion provider test**
+- [x] **Step 7: Run backend Remotion provider test**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
 .venv/bin/python -m pytest tests/rendering/test_remotion_provider.py -v
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -538,7 +538,7 @@ git commit -m "feat(renderer): stabilize Remotion real MP4 rendering"
 - Consumes: `output_url` and `html_output_url` from render job
 - Produces: `<VideoPreview outputUrl={...} htmlOutputUrl={...} />` component
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 // frontend/src/components/project/VideoPreview.test.tsx
@@ -563,7 +563,7 @@ describe("VideoPreview", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/frontend
@@ -572,7 +572,7 @@ npm test -- VideoPreview.test.tsx
 
 Expected: FAIL
 
-- [ ] **Step 3: Implement VideoPreview component**
+- [x] **Step 3: Implement VideoPreview component**
 
 ```tsx
 // frontend/src/components/project/VideoPreview.tsx
@@ -626,7 +626,7 @@ export function VideoPreview({ outputUrl, htmlOutputUrl }: VideoPreviewProps) {
 }
 ```
 
-- [ ] **Step 4: Integrate into PreviewPlayer**
+- [x] **Step 4: Integrate into PreviewPlayer**
 
 ```tsx
 // frontend/src/components/project/PreviewPlayer.tsx
@@ -637,7 +637,7 @@ import { VideoPreview } from "./VideoPreview";
 <VideoPreview outputUrl={job?.output_url || null} htmlOutputUrl={job?.html_output_url || null} />
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/frontend
@@ -646,7 +646,7 @@ npm test -- VideoPreview.test.tsx
 
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -679,7 +679,7 @@ docker-compose logs -f worker
 
 Expected: worker connected to redis, waiting for tasks
 
-- [ ] **Step 3: Run e2e script**
+- [x] **Step 3: Run e2e script**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -711,13 +711,13 @@ Expected:
 - OUTPUT_URL points to `/api/static/{project_id}/output.mp4`
 - MP4 HTTP 200 and size > 0
 
-- [ ] **Step 4: Verify frontend displays video**
+- [x] **Step 4: Verify frontend displays video**
 
 Open `http://localhost:3000/projects/{PROJECT_ID}` and confirm:
 - 渲染完成后预览区显示 `<video>` 标签
 - 点击下载可拿到真实 MP4
 
-- [ ] **Step 5: Commit verification notes**
+- [x] **Step 5: Commit verification notes**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -748,3 +748,13 @@ git commit -m "docs(plan): mark P0 e2e verification complete"
 **已知风险：**
 - Remotion Docker 镜像构建耗时较长，需提前执行
 - 若 Remotion 在容器内失败，先回退到 HyperFrames 或 mock 验证队列链路
+
+**Verification Notes (2026-07-06):**
+- 端到端脚本 `scripts/e2e_remotion.sh` 验证通过：worker 链路生成真实 MP4（约 98KB / 30s）。
+- 关键修复：
+  - `backend/app/config.py` 将 `ASSETS_DIR` 解析为绝对路径，避免跨容器相对路径导致 Remotion CLI 找不到 props 文件。
+  - `backend/app/rendering/providers/remotion.py` 写入 `composition.json` 后执行 `flush()` + `fsync()`，保证共享卷可见性。
+  - `services/renderer/main.py` 在调用 Remotion CLI 前校验 props 文件为合法 JSON，并改用绝对路径传参。
+  - `services/renderer/main.py` 补回缺失的 `import json`。
+  - `backend/requirements.txt` 补齐 `celery>=5.4.0` 与 `pytest-asyncio>=0.23.0`。
+- 测试：`docker-compose exec backend pytest tests/ -q` — **41 passed**。

@@ -11,6 +11,9 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     python3 \
     python3-pip \
     python3-venv \
+    chromium \
+    chromium-common \
+    chromium-sandbox \
     libnss3 \
     libatk1.0-0 \
     libatk-bridge2.0-0 \
@@ -46,9 +49,12 @@ RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi 
     cd remotion && npm install
 
 COPY . .
+COPY patch-remotion.py /app/patch-remotion.py
+RUN python3 /app/patch-remotion.py
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV REMOTION_DISABLE_CHROMIUM_SANDBOX=true
+ENV PUPPETEER_EXECUTABLE_PATH=/root/.cache/ms-playwright/chromium-1228/chrome-linux/chrome
 
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

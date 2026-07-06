@@ -133,6 +133,7 @@ def render_video_task(self, job_id: str, project_id: str, prompt: Optional[str] 
         job.html_output_url = html_url
         db.commit()
 
+        logger.info(f"Render request engine={engine!r} for job={job_id}")
         request = RenderRequest(
             engine=engine,
             composition=comp_json,
@@ -142,6 +143,7 @@ def render_video_task(self, job_id: str, project_id: str, prompt: Optional[str] 
             source_url=project.source_url,
         )
         result = RenderService().render(job, project, request)
+        logger.info(f"Render result success={result.success} output_url={result.output_url} error={result.error_message}")
         if result.success:
             job.status = "completed"
             job.progress = 100

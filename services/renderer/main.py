@@ -1,8 +1,13 @@
+import json
+import logging
 import os
 import shutil
 import subprocess
+import time
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 ASSETS_DIR = os.path.abspath(os.getenv("ASSETS_DIR", "/app/data/assets"))
 app = FastAPI(title="ClipWorks Renderer")
@@ -110,17 +115,33 @@ def render_remotion(req: RemotionRequest):
     os.makedirs(os.path.dirname(os.path.abspath(req.output_path)), exist_ok=True)
     remotion_dir = os.path.join(os.path.dirname(__file__), "remotion")
 
+    # Ensure the props file is fully written and valid JSON before handing it to Remotion.
+    props_path = os.path.abspath(req.composition_path)
+    for attempt in range(10):
+        try:
+            with open(props_path, "r", encoding="utf-8") as f:
+                json.load(f)
+            break
+        except Exception:
+            if attempt == 9:
+                logger.error("Props file is not valid JSON: %s", props_path)
+                return {"success": False, "output_url": None, "error": f"Props file is not valid JSON: {props_path}"}
+            time.sleep(0.2)
+
+    output_path = os.path.abspath(req.output_path)
     cmd = [
-        "npx", "remotion", "render", "Generic", req.output_path,
-        "--props", req.composition_path,
+        "npx", "remotion", "render", "Generic", output_path,
+        "--props", props_path,
         "--concurrency", "1",
     ]
     try:
         result = subprocess.run(cmd, cwd=remotion_dir, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode != 0:
+            logger.error("Remotion render failed: %s", result.stderr or result.stdout)
             return {"success": False, "output_url": None, "error": result.stderr or result.stdout or "Remotion render failed"}
         return {"success": True, "output_url": _relative_url(req.output_path), "error": None}
     except Exception as exc:
+        logger.exception("Remotion render raised exception")
         return {"success": False, "output_url": None, "error": str(exc)}
 
 

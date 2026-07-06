@@ -21,6 +21,7 @@ services:
     environment:
       - ASSETS_DIR=/app/data/assets
       - REMOTION_DISABLE_CHROMIUM_SANDBOX=true
+      - PUPPETEER_EXECUTABLE_PATH=/root/.cache/ms-playwright/chromium-1228/chrome-linux/chrome
     volumes:
       - ./data/assets:/app/data/assets
     ports:

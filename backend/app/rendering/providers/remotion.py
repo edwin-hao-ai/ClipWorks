@@ -22,6 +22,8 @@ class RemotionProvider(RenderProvider):
 
         with open(comp_path, "w", encoding="utf-8") as f:
             json.dump({"composition": request.composition}, f, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
 
         try:
             async with httpx.AsyncClient(timeout=300) as client:
