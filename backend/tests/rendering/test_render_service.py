@@ -1,12 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.rendering.provider import RenderRequest
 from app.rendering.service import RenderService
 
 
-@pytest.mark.asyncio
-async def test_service_tries_fallback_on_failure(monkeypatch):
+def test_service_tries_fallback_on_failure(monkeypatch):
     from app.rendering import service as service_mod
 
     mock_provider_a = MagicMock()
@@ -21,6 +19,6 @@ async def test_service_tries_fallback_on_failure(monkeypatch):
 
     service_mod.PROVIDERS = [mock_provider_a, mock_provider_b]
 
-    result = await RenderService().render(MagicMock(), MagicMock(), RenderRequest(composition={}, assets={}))
+    result = RenderService().render(MagicMock(), MagicMock(), RenderRequest(composition={}, assets={}))
     assert result.success is True
     assert result.output_url == "/ok.mp4"

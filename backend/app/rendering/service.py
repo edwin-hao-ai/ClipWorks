@@ -1,3 +1,5 @@
+import asyncio
+
 from app.rendering.engine_selector import select_engine
 from app.rendering.providers.hyperframes import HyperFramesProvider
 from app.rendering.providers.remotion import RemotionProvider
@@ -14,7 +16,10 @@ PROVIDERS = [
 
 
 class RenderService:
-    async def render(self, job, project, request: RenderRequest) -> RenderResult:
+    def render(self, job, project, request: RenderRequest) -> RenderResult:
+        return asyncio.run(self._render_async(job, project, request))
+
+    async def _render_async(self, job, project, request: RenderRequest) -> RenderResult:
         engine = request.engine or select_engine(request)
         provider_map = {p.name: p for p in PROVIDERS}
         ordered = [provider_map[engine]] if engine in provider_map else []
