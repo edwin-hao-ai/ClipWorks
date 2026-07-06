@@ -34,10 +34,11 @@ RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi 
 
 COPY requirements.txt ./
 ARG PIP_INDEX_URL=
-RUN if [ -n "$PIP_INDEX_URL" ]; then pip3 config set global.index-url "$PIP_INDEX_URL"; fi && \
-    pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+RUN python3 -m venv /app/.venv && \
+    if [ -n "$PIP_INDEX_URL" ]; then /app/.venv/bin/pip config set global.index-url "$PIP_INDEX_URL"; fi && \
+    /app/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
-RUN python3 -m playwright install chromium
+RUN /app/.venv/bin/python -m playwright install chromium
 
 COPY remotion ./remotion
 RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi && \
@@ -45,6 +46,7 @@ RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi 
 
 COPY . .
 
+ENV PATH="/app/.venv/bin:$PATH"
 ENV REMOTION_DISABLE_CHROMIUM_SANDBOX=true
 
 EXPOSE 8000

@@ -499,7 +499,7 @@ Create a composition JSON and post to renderer:
 ```bash
 mkdir -p /tmp/remotion-test
 cat > /tmp/remotion-test/composition.json <<'EOF'
-{"duration": 3, "tracks": [{"type": "text", "clips": [{"start_time": 0, "duration": 3, "text_content": "Hello Real Video"}]}]}
+{"composition": {"duration": 3, "tracks": [{"type": "text", "clips": [{"start_time": 0, "duration": 3, "text_content": "Hello Real Video"}]}]}}
 EOF
 
 curl -X POST http://localhost:8001/render/remotion \
