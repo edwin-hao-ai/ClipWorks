@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { PlanWizard } from '@/components/project/PlanWizard';
 import { Project } from '@/lib/types';
@@ -38,5 +39,34 @@ describe('PlanWizard', () => {
     );
     expect(screen.getByText(/脚本/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue('T')).toBeInTheDocument();
+  });
+
+  it('navigates to assets panel and renders the asset list', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const projectWithAssets: Project = {
+      ...baseProject,
+      agent_state: {
+        step: 'script',
+        script: baseProject.agent_state.script,
+        assets: {
+          needed: [
+            { type: 'image', description: '主视觉图', query: 'product hero', count: 2 },
+          ],
+        },
+      },
+    };
+    render(
+      <PlanWizard
+        project={projectWithAssets}
+        onStateChange={onChange}
+        onApprove={vi.fn()}
+        generating={false}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: /下一步/i }));
+    expect(screen.getByRole('heading', { name: '素材' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('主视觉图')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('product hero')).toBeInTheDocument();
   });
 });
