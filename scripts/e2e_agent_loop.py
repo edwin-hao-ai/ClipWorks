@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--project-id", required=True, help="Project UUID")
     parser.add_argument(
         "--api",
-        default=os.getenv("CLIPWORKS_API", "http://localhost:8000"),
+        default=API,
         help="ClipWorks API base URL (default: http://localhost:8000)",
     )
     args = parser.parse_args()
