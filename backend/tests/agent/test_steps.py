@@ -3,6 +3,8 @@ import pytest
 from app.agent.llm import LLMUnavailableError
 from app.agent.steps.script_step import _extract_script_json, run as run_script, _build_context as build_script_context
 from app.agent.steps.assets_step import run as run_assets
+from app.agent.steps.scenes_step import run as run_scenes
+from app.agent.steps.effects_step import run as run_effects
 from app.agent.steps import run_step, previous_step, STEPS, ORDER
 from app.agent.steps._fallbacks import fallback_script, fallback_assets, fallback_scenes, fallback_effects
 
@@ -76,6 +78,21 @@ def test_extract_effects_json():
     text = '```json\n{"effects": [{"scene_index": 0, "visual_style": "V", "animation_keywords": ["a"], "generate_image": true, "generate_image_prompt": "P"}]}\n```'
     result = _extract_effects_json(text)
     assert result["effects"][0]["scene_index"] == 0
+
+
+def test_extract_assets_json_non_dict_returns_none():
+    assert _extract_assets_json('```json\n[1, 2, 3]\n```') is None
+    assert _extract_assets_json('```json\n"just a string"\n```') is None
+
+
+def test_extract_scenes_json_non_dict_returns_none():
+    assert _extract_scenes_json('```json\n[{"start": 0}]\n```') is None
+    assert _extract_scenes_json('```json\n"scenes"\n```') is None
+
+
+def test_extract_effects_json_non_dict_returns_none():
+    assert _extract_effects_json('```json\n[{"scene_index": 0}]\n```') is None
+    assert _extract_effects_json('```json\n"effects"\n```') is None
 
 
 def test_build_script_context_includes_project_meta():
@@ -193,3 +210,85 @@ def test_assets_step_run_unexpected_error_falls_back(monkeypatch):
     assert events[-1]["type"] == "done"
     assert "assets" in state
     assert "needed" in state["assets"]
+
+
+def test_scenes_step_run_llm_unavailable_uses_fallback(monkeypatch):
+    project = FakeProject()
+    state = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            raise LLMUnavailableError("no api key")
+            yield ""
+
+    monkeypatch.setattr("app.agent.steps.scenes_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_scenes(project, state, None)]
+
+    assert all(e["type"] in ("token", "done") for e in events)
+    assert events[-1]["type"] == "done"
+    assert "scenes" in state
+    assert "scenes" in state["scenes"]
+
+
+def test_scenes_step_run_unparseable_output_uses_fallback(monkeypatch):
+    project = FakeProject()
+    state = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            yield "not valid json"
+
+    monkeypatch.setattr("app.agent.steps.scenes_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_scenes(project, state, None)]
+
+    assert any(e["type"] == "error" for e in events)
+    assert events[-1]["type"] == "done"
+    assert state["scenes"] is not None
+    assert "scenes" in state["scenes"]
+
+
+def test_effects_step_run_llm_unavailable_uses_fallback(monkeypatch):
+    project = FakeProject()
+    state = {"scenes": {"scenes": [{"visual": "科技感画面"}]}}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            raise LLMUnavailableError("no api key")
+            yield ""
+
+    monkeypatch.setattr("app.agent.steps.effects_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_effects(project, state, None)]
+
+    assert all(e["type"] in ("token", "done") for e in events)
+    assert events[-1]["type"] == "done"
+    assert "effects" in state
+    assert len(state["effects"]["effects"]) == 1
+
+
+def test_effects_step_run_unparseable_output_uses_fallback(monkeypatch):
+    project = FakeProject()
+    state = {"scenes": {"scenes": [{"visual": "科技感画面"}]}}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            yield "not valid json"
+
+    monkeypatch.setattr("app.agent.steps.effects_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_effects(project, state, None)]
+
+    assert any(e["type"] == "error" for e in events)
+    assert events[-1]["type"] == "done"
+    assert state["effects"] is not None
+    assert len(state["effects"]["effects"]) == 1

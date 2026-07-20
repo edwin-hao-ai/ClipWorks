@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def _extract_effects_json(text: str) -> Optional[dict]:
     data = parse_json(text)
-    if not data or "effects" not in data:
+    if not isinstance(data, dict) or "effects" not in data:
         return None
     return data
 
