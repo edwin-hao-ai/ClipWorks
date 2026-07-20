@@ -89,7 +89,7 @@ export function AssetsPanel({ value, onChange }: AssetsPanelProps) {
                 type="number"
                 min={1}
                 value={item.count}
-                onChange={(e) => updateItem(idx, { count: Number(e.target.value) })}
+                onChange={(e) => updateItem(idx, { count: Math.max(1, Number(e.target.value) || 1) })}
                 className="w-full rounded-md bg-background-base border border-border px-2 py-1.5 text-sm text-content-primary focus-ring"
               />
             </div>

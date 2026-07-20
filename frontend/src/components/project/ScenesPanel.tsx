@@ -18,8 +18,7 @@ export function ScenesPanel({ value, onChange }: ScenesPanelProps) {
   };
 
   const addScene = () => {
-    const last = scenes.scenes[scenes.scenes.length - 1];
-    const start = last ? last.start + last.duration : 0;
+    const start = Math.max(0, ...scenes.scenes.map((s) => s.start + s.duration));
     onChange({
       ...scenes,
       scenes: [

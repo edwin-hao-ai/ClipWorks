@@ -16,13 +16,15 @@ export function EffectsPanel({ value, scenes, onChange }: EffectsPanelProps) {
 
   const ensureEffects = (): AgentEffectPlan => {
     if (effects.effects.length >= sceneList.length) return effects;
-    const generated = sceneList.map((_, idx) => ({
-      scene_index: idx,
-      visual_style: '',
-      animation_keywords: [],
-      generate_image: false,
-      generate_image_prompt: '',
-    }));
+    const generated = sceneList.map((_, idx) =>
+      effects.effects[idx] ?? {
+        scene_index: idx,
+        visual_style: '',
+        animation_keywords: [],
+        generate_image: false,
+        generate_image_prompt: '',
+      }
+    );
     return { effects: generated };
   };
 
@@ -55,6 +57,7 @@ export function EffectsPanel({ value, scenes, onChange }: EffectsPanelProps) {
                   <button
                     key={style}
                     type="button"
+                    aria-pressed={effect.visual_style === style}
                     onClick={() => updateEffect(idx, { visual_style: style })}
                     className={`px-2 py-1 rounded-full text-xs border focus-ring ${
                       effect.visual_style === style
