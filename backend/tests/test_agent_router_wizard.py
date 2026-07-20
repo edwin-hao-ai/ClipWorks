@@ -163,6 +163,30 @@ def test_step_script_stream(auth_client, project, monkeypatch):
     assert state_r.json()["generating_step"] is None
 
 
+def test_step_outputs_persist_after_stream(auth_client, project, monkeypatch):
+    pid = project["id"]
+
+    def fake_step(step_name, project_obj, state, user_input):
+        assert step_name == "script"
+        # Simulate run_step mutating state in place and emitting a chunk.
+        state["script"] = {"title": "Persisted Script", "hook": "Hello world"}
+        yield json.dumps({"type": "script", "title": "Persisted Script"}, ensure_ascii=False)
+
+    monkeypatch.setattr("app.routers.agent.run_step", fake_step)
+
+    r = auth_client.post(f"/projects/{pid}/agent/step/script", json={"user_input": "write a script"})
+    assert r.status_code == 200
+    # Consume the stream to trigger the finally block that persists state.
+    list(r.iter_lines())
+
+    state_r = auth_client.get(f"/projects/{pid}/agent/state")
+    assert state_r.status_code == 200
+    data = state_r.json()
+    assert data["step"] == "script"
+    assert data["generating_step"] is None
+    assert data["script"] == {"title": "Persisted Script", "hook": "Hello world"}
+
+
 def test_step_error_stream(auth_client, project, monkeypatch):
     pid = project["id"]
 

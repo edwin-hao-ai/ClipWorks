@@ -199,14 +199,13 @@ def run_agent_step(
             logger.exception("Step %s failed", step_name)
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
         finally:
-            # 事务提交后行锁已释放，重新查询并清除 generating_step；
-            # 同时保留流执行过程中更新的 step，避免覆盖为旧值。
+            # 事务提交后行锁已释放，重新查询并持久化完整的内存状态；
+            # run_step 会就地修改 state 中的 script/assets/scenes/effects，
+            # 因此必须写回整个 state，不能只复制 step。
             current_project = db.query(Project).filter(Project.id == project_id).first()
             if current_project:
-                fresh_state = _load_state(current_project)
-                fresh_state["step"] = state.get("step", fresh_state.get("step"))
-                fresh_state["generating_step"] = None
-                current_project.agent_state = fresh_state
+                state["generating_step"] = None
+                current_project.agent_state = state
                 try:
                     db.commit()
                 except Exception:
