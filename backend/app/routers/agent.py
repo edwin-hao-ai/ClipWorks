@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import modify_video
 from app.agent.conversation import stream_planning_response, build_fallback_plan
+from app.agent.steps import run_step, ORDER, previous_step
 from app.database import get_db
 from app.models import Project, User, RenderJob
 from app.routers.auth import get_current_user
@@ -18,6 +19,14 @@ from app.routers.renders import render_video_task, _check_credits
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/agent", tags=["agent"])
+
+
+class AgentStateEditPayload(BaseModel):
+    state: dict
+
+
+class AgentStepPayload(BaseModel):
+    user_input: Optional[str] = None
 
 
 class AgentChatPayload(BaseModel):
@@ -86,6 +95,145 @@ def _persist_composition(project, comp_json, db):
         project.composition.height = int(comp_json["height"])
     db.commit()
     db.refresh(project)
+
+
+def _fresh_agent_state() -> dict:
+    return {
+        "messages": [],
+        "pending_plan": None,
+        "step": "idle",
+        "generating_step": None,
+        "script": None,
+        "assets": None,
+        "scenes": None,
+        "effects": None,
+    }
+
+
+def _load_state(project) -> dict:
+    state = dict(project.agent_state) if project.agent_state else _fresh_agent_state()
+    for key in _fresh_agent_state():
+        state.setdefault(key, _fresh_agent_state()[key])
+    return state
+
+
+def _validate_step_order(state: dict, step_name: str):
+    current = state.get("step", "idle")
+    if step_name == "script":
+        return
+    required = previous_step(step_name)
+    if required and current not in {required, step_name} and not state.get(required):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Please complete {required} before running {step_name}",
+        )
+
+
+@router.get("/state")
+def get_agent_state(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _require_project(project_id, user, db)
+    return _load_state(project)
+
+
+@router.post("/state")
+def update_agent_state(
+    project_id: str,
+    payload: AgentStateEditPayload,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _require_project(project_id, user, db)
+    state = _load_state(project)
+    # 仅允许编辑分步骤数据与当前步骤标记；messages 只在显式提供时才覆盖。
+    for key in ["script", "assets", "scenes", "effects", "step", "generating_step"]:
+        if key in payload.state:
+            state[key] = payload.state[key]
+    if "messages" in payload.state:
+        state["messages"] = payload.state["messages"]
+    project.agent_state = state
+    db.commit()
+    return state
+
+
+@router.post("/step/{step_name}")
+def run_agent_step(
+    project_id: str,
+    step_name: str,
+    payload: AgentStepPayload,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if step_name not in ("script", "assets", "scenes", "effects"):
+        raise HTTPException(status_code=400, detail="Invalid step name")
+    project = _require_project(project_id, user, db)
+    state = _load_state(project)
+    if state.get("generating_step"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Already generating {state['generating_step']}; please wait",
+        )
+    _validate_step_order(state, step_name)
+    state["generating_step"] = step_name
+    project.agent_state = state
+    project.status = "planning"
+    db.commit()
+
+    def event_stream():
+        try:
+            for chunk in run_step(step_name, project, state, payload.user_input):
+                yield f"data: {chunk}\n\n"
+            state["step"] = step_name
+        except Exception as exc:
+            logger.exception("Step %s failed", step_name)
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
+        finally:
+            state["generating_step"] = None
+            project.agent_state = state
+            db.commit()
+        yield f"data: {json.dumps({'type': 'done', 'step': step_name}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
+
+
+@router.post("/back")
+def step_back(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _require_project(project_id, user, db)
+    state = _load_state(project)
+    current = state.get("step", "idle")
+    prev = previous_step(current)
+    if not prev:
+        raise HTTPException(status_code=400, detail="Cannot go back from idle")
+    state["step"] = prev
+    state["generating_step"] = None
+    project.agent_state = state
+    db.commit()
+    return state
+
+
+@router.post("/reset")
+def reset_agent(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _require_project(project_id, user, db)
+    state = _fresh_agent_state()
+    project.agent_state = state
+    project.status = "draft"
+    db.commit()
+    return state
 
 
 @router.post("/chat")
@@ -216,7 +364,7 @@ def approve_agent_plan(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Approve the pending plan and queue video generation.
+    """Approve the wizard plan or pending plan and queue video generation.
 
     The actual composition build, HTML generation and rendering happen
     asynchronously in the worker so the HTTP response returns immediately
@@ -224,10 +372,37 @@ def approve_agent_plan(
     """
     project = _require_project(project_id, user, db)
     _check_credits(user)
-    state = project.agent_state or {}
-    plan = state.get("pending_plan")
+    state = _load_state(project)
+
+    plan = None
+    if state.get("script") and state.get("assets") and state.get("scenes") and state.get("effects"):
+        script = state["script"]
+        scenes_data = state["scenes"].get("scenes", [])
+        effects_data = state["effects"].get("effects", [])
+        # Merge effects into scenes for downstream consumption.
+        enriched_scenes = []
+        for i, scene in enumerate(scenes_data):
+            effect = next((e for e in effects_data if e.get("scene_index") == i), {})
+            enriched = dict(scene)
+            enriched["visual_style"] = effect.get("visual_style", "")
+            enriched["animation_keywords"] = effect.get("animation_keywords", [])
+            enriched["generate_image"] = effect.get("generate_image", False)
+            enriched["generate_image_prompt"] = effect.get("generate_image_prompt", "")
+            enriched_scenes.append(enriched)
+        plan = {
+            "title": script.get("title", project.title),
+            "hook": script.get("hook", ""),
+            "format": script.get("format", project.target_format or "16:9"),
+            "duration": script.get("duration", project.target_duration or 30),
+            "scenes": enriched_scenes,
+            "assets_needed": [a.get("description", "") for a in state["assets"].get("needed", [])],
+            "engine_hint": payload.engine or "hyperframes",
+        }
+    else:
+        plan = state.get("pending_plan")
+
     if not plan:
-        raise HTTPException(status_code=400, detail="No pending plan to approve")
+        raise HTTPException(status_code=400, detail="No plan to approve")
 
     # Update project settings from the plan.
     if plan.get("format"):
@@ -239,15 +414,15 @@ def approve_agent_plan(
 
     # Persist the plan as a script for reference.
     from app.models import Script
-    script = Script(
+    script_record = Script(
         project_id=project.id,
         title=plan.get("title", project.title),
         hook=plan.get("hook", ""),
         scenes=plan.get("scenes", []),
     )
-    db.add(script)
+    db.add(script_record)
 
-    state["step"] = "generating"
+    state["step"] = "approved"
     state["pending_plan"] = None
     project.agent_state = state
     project.status = "generating"
