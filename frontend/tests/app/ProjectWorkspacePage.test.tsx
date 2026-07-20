@@ -18,6 +18,7 @@ vi.mock('@/lib/api', () => ({
     post: vi.fn(),
     put: vi.fn(),
   },
+  streamJsonLines: vi.fn(),
 }));
 
 vi.mock('@/stores/authStore', () => ({
@@ -114,10 +115,27 @@ describe.sequential('ProjectWorkspacePage', () => {
     expect(screen.getAllByText('生成失败').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows centered agent chat in planning mode and hides editor panels for draft projects', async () => {
+  it('shows PlanWizard in planning mode and hides editor panels for draft projects', async () => {
     (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url === '/projects/test-id') {
-        return Promise.resolve(makeProject({ title: 'Draft Project' }));
+        return Promise.resolve(
+          makeProject({
+            title: 'Draft Project',
+            status: 'planning',
+            agent_state: {
+              step: 'script',
+              script: {
+                title: 'Draft Project',
+                hook: '',
+                roles: [],
+                narrative_arc: '',
+                cta: '',
+                duration: 30,
+                format: '16:9',
+              },
+            },
+          })
+        );
       }
       if (url === '/projects/test-id/assets/') return Promise.resolve([]);
       if (url === '/projects/test-id/renders/') return Promise.resolve([]);
@@ -125,8 +143,8 @@ describe.sequential('ProjectWorkspacePage', () => {
     });
 
     render(<ProjectWorkspacePage />);
-    expect(await screen.findByText('AI 导演 · 规划', undefined, { timeout: 3000 })).toBeInTheDocument();
-    expect(screen.getByText('Hi! 我是你的 AI 导演。先和我聊聊你想做什么视频：用途、时长、画幅、风格？不够清楚的话我会先问你。')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '1 脚本' }, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 素材' })).toBeInTheDocument();
     expect(screen.queryByText('暂无预览')).not.toBeInTheDocument();
     expect(screen.queryByText('项目属性')).not.toBeInTheDocument();
     expect(screen.queryByText('场景卡片')).not.toBeInTheDocument();

@@ -18,16 +18,30 @@ const STEPS = [
 
 export interface PlanWizardProps {
   project: Project;
+  activeTab?: string;
+  onActiveTabChange?: (tab: string) => void;
   onStateChange: (state: NonNullable<Project['agent_state']>) => void;
   onApprove: () => void;
   generating: boolean;
 }
 
-export function PlanWizard({ project, onStateChange, onApprove, generating }: PlanWizardProps) {
+export function PlanWizard({
+  project,
+  activeTab: activeTabProp,
+  onActiveTabChange,
+  onStateChange,
+  onApprove,
+  generating,
+}: PlanWizardProps) {
   const state = project.agent_state || { step: 'idle' };
-  const [activeTab, setActiveTab] = useState<string>(
+  const [internalActiveTab, setInternalActiveTab] = useState<string>(
     STEPS.find((s) => s.id === state.step)?.id ?? 'script'
   );
+  const activeTab = activeTabProp ?? internalActiveTab;
+  const setActiveTab = (tab: string) => {
+    setInternalActiveTab(tab);
+    onActiveTabChange?.(tab);
+  };
 
   const currentStepIndex = STEPS.findIndex((s) => s.id === state.step);
   const activeIndex = STEPS.findIndex((s) => s.id === activeTab);

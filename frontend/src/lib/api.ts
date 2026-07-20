@@ -100,6 +100,44 @@ async function* streamGet(path: string) {
   }
 }
 
+export async function* streamJsonLines(
+  url: string,
+  body: unknown
+): AsyncGenerator<{ type: string; [key: string]: unknown }> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('No response body');
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === '[DONE]') return;
+      try {
+        yield JSON.parse(payload);
+      } catch {
+        // ignore malformed lines
+      }
+    }
+  }
+}
+
 export const api = {
   get: (path: string) => request(path),
   post: (path: string, body?: unknown) => request(path, { method: 'POST', body: JSON.stringify(body) }),
