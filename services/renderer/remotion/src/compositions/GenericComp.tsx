@@ -313,6 +313,8 @@ const KenBurnsImg: React.FC<{
   const driftY = Math.cos(progress * Math.PI * 0.6) * 22;
   const rotate = (progress - 0.5) * 1.2;
   return (
+    // @ts-expect-error Remotion 4.0.0 Img types are incompatible with @types/react@18.3;
+    // runtime props are correct, so suppress the type mismatch.
     <Img
       src={src}
       style={{
@@ -443,14 +445,14 @@ const LowerThird: React.FC<{
   );
 };
 
-interface Position {
+export interface Position {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-interface Clip {
+export interface Clip {
   id?: string;
   start_time: number;
   duration: number;
@@ -460,7 +462,7 @@ interface Clip {
   text_content?: string;
 }
 
-interface Track {
+export interface Track {
   type: string;
   index: number;
   name?: string;
@@ -613,7 +615,7 @@ export const GenericComp: React.FC<{
     height?: number;
     duration?: number;
     tracks?: Track[];
-    metadata?: { brand_color?: string; brand_font?: string };
+    metadata?: { brand_color?: string; brand_font?: string; engine?: string };
   };
   assets?: Record<string, string>;
 }> = ({ composition, assets }) => {
@@ -647,6 +649,10 @@ export const GenericComp: React.FC<{
       bgClip?.style?.visual
   );
 
+  // 当 composition 来自 hybrid 流程时，HF 已经负责了单 scene 的氛围动效；
+  // Remotion 端再叠加 AmbientCanvas 会出现双重粒子/网格，因此整体禁用氛围层。
+  const isHybrid = composition.metadata?.engine === "hybrid";
+
   // lower-third 去重键：LLM 常把 lower_third 写进视觉 clip 的 style，同时再生成一个
   // 内容相同的独立小文本 clip。视觉 clip 的 lower_third 由 LowerThird 组件统一渲染，
   // 内容完全相同的文本 clip 视为重复、跳过，避免同一角标叠两次。
@@ -659,7 +665,7 @@ export const GenericComp: React.FC<{
       )
       .map(
         (c) =>
-          `${Math.round((c.start_time || 0) * 10)}::${String(c.style.lower_third).trim()}`
+          `${Math.round((c.start_time || 0) * 10)}::${String(c.style?.lower_third).trim()}`
       )
   );
 
@@ -678,12 +684,14 @@ export const GenericComp: React.FC<{
   return (
     <AbsoluteFill style={inferBackgroundStyle(bgClip)}>
       {/* Ambient motion graphics so static images don't feel like a slideshow. */}
-      <AmbientCanvas
-        flavor={activeFlavor}
-        width={canvasWidth}
-        height={canvasHeight}
-        brandColor={brandColor}
-      />
+      {!isHybrid && (
+        <AmbientCanvas
+          flavor={activeFlavor}
+          width={canvasWidth}
+          height={canvasHeight}
+          brandColor={brandColor}
+        />
+      )}
       <Vignette width={canvasWidth} height={canvasHeight} />
       <GrainOverlay width={canvasWidth} height={canvasHeight} />
 
@@ -749,6 +757,7 @@ export const GenericComp: React.FC<{
                   from={startFrame}
                   durationInFrames={durationFrames}
                 >
+                  {/* @ts-expect-error Remotion 4.0.0 Audio types are incompatible with @types/react@18.3; */}
                   <Audio src={src} />
                 </Sequence>
               );

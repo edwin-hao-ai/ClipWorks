@@ -1,15 +1,17 @@
 import { Composition, CalculateMetadataFunction, registerRoot } from "remotion";
 import { GenericComp } from "./compositions/GenericComp";
+import type { Track } from "./compositions/GenericComp";
 
-interface CompositionProps {
+type CompositionProps = {
   composition: {
     width?: number;
     height?: number;
     duration?: number;
-    tracks?: unknown[];
+    tracks?: Track[];
+    metadata?: { brand_color?: string; brand_font?: string; engine?: string };
   };
   assets?: Record<string, string>;
-}
+};
 
 const calculateMetadata: CalculateMetadataFunction<CompositionProps> = ({
   props,
