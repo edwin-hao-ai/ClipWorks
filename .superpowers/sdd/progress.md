@@ -123,3 +123,9 @@
   - remotion renderer test: timed out (requires real renderer/Chromium; not a code regression)
   - TypeScript compile in services/renderer/remotion: passed
   - e2e_hybrid.sh: not run (full local stack not available)
+- Final review fixes: eb22f92 — removed dead cache code, switched to sync HTTP, added output-file verification, range-based clip replacement, python3 in e2e script
+- Verification after fixes:
+  - backend isolated tests: 15 passed
+  - renderer hyperframes tests: 5 passed
+  - Remotion TypeScript compile: clean
+  - e2e_hybrid.sh syntax: OK
