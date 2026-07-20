@@ -329,7 +329,7 @@ def test_approve_four_step_builds_plan(auth_client, project, monkeypatch):
         assert "job_id" in r.json()
         mock_task.delay.assert_called_once()
         _, _, _, engine, plan = mock_task.delay.call_args[0]
-        assert engine == "hyperframes"
+        assert engine is None
         assert plan["title"] == "Wizard Plan"
         assert plan["hook"] == "H"
         assert plan["format"] == "16:9"

@@ -25,6 +25,9 @@ export interface AgentScript {
   cta: string;
   duration: number;
   format: '16:9' | '9:16' | '1:1';
+  style?: string;
+  mood?: string;
+  rhythm?: string;
 }
 
 export interface AgentAssetItem {
@@ -49,6 +52,7 @@ export interface AgentSceneItem {
   transition: string;
   lower_third: string;
   required_assets: number[];
+  narration?: string;
   visual_style?: string;
   animation_keywords?: string[];
   generate_image?: boolean;
@@ -99,6 +103,7 @@ export interface AgentScene {
   description: string;
   visual: string;
   text: string;
+  narration?: string;
 }
 
 export interface Project {

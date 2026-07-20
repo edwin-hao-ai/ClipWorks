@@ -18,6 +18,9 @@ def fallback_script(project):
         "cta": "立即体验",
         "duration": plan.get("duration", project.target_duration or 30),
         "format": plan.get("format", project.target_format or "16:9"),
+        "style": "现代简约",
+        "mood": "积极向上",
+        "rhythm": "明快",
     }
 
 
@@ -42,6 +45,7 @@ def fallback_scenes(project, state):
         s.setdefault("transition", "fade")
         s.setdefault("lower_third", "")
         s.setdefault("required_assets", [])
+        s.setdefault("narration", s.get("text", ""))
     return {"scenes": scenes}
 
 

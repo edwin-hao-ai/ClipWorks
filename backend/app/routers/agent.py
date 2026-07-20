@@ -21,6 +21,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/agent", tags=["agent"])
 
 
+ALLOWED_STEPS = {
+    "idle",
+    "script",
+    "assets",
+    "scenes",
+    "effects",
+    "approved",
+    "chatting",
+    "pending_approval",
+    "generating",
+}
+
+# Steps that may only be entered through dedicated endpoints, not via /state.
+RESERVED_STEPS = {"approved", "generating"}
+
+
 class AgentStateEditPayload(BaseModel):
     state: dict
 
@@ -148,6 +164,21 @@ def update_agent_state(
 ):
     project = _require_project(project_id, user, db)
     state = _load_state(project)
+
+    # 步骤字段需显式校验：不允许非法值，也不允许通过 /state 直接跳到 approved/generating。
+    if "step" in payload.state:
+        step_value = payload.state["step"]
+        if step_value not in ALLOWED_STEPS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid step value: {step_value!r}. Allowed steps: {', '.join(sorted(ALLOWED_STEPS))}.",
+            )
+        if step_value in RESERVED_STEPS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Step '{step_value}' can only be reached via /approve, not via /state.",
+            )
+
     # 仅允许客户端编辑业务数据与当前步骤标记；generating_step 由 /step 端点内部管理，
     # 避免并发流执行期间被外部覆盖。messages 可编辑，用于 UI 预置对话历史。
     for key in ["script", "assets", "scenes", "effects", "step"]:
@@ -405,6 +436,7 @@ def approve_agent_plan(
             enriched["animation_keywords"] = effect.get("animation_keywords", [])
             enriched["generate_image"] = effect.get("generate_image", False)
             enriched["generate_image_prompt"] = effect.get("generate_image_prompt", "")
+            enriched.setdefault("narration", "")
             enriched_scenes.append(enriched)
         plan = {
             "title": script.get("title", project.title),
@@ -413,7 +445,10 @@ def approve_agent_plan(
             "duration": script.get("duration", project.target_duration or 30),
             "scenes": enriched_scenes,
             "assets_needed": [a.get("description", "") for a in state["assets"].get("needed", [])],
-            "engine_hint": payload.engine or "hyperframes",
+            "style": script.get("style", ""),
+            "mood": script.get("mood", ""),
+            "rhythm": script.get("rhythm", ""),
+            "engine_hint": payload.engine or None,
         }
     else:
         plan = state.get("pending_plan")

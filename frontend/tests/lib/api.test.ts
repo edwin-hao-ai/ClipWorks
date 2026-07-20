@@ -50,7 +50,7 @@ describe('streamJsonLines', () => {
   });
 
   it('prepends API_URL to the given path', async () => {
-    const { response, releaseLock } = makeFakeResponse({ chunks: ['data: [DONE]\n'] });
+    const { response, releaseLock } = makeFakeResponse({ chunks: ['data: [DONE]\n\n'] });
     fetchSpy.mockResolvedValue(response);
 
     const gen = streamJsonLines('/projects/1/agent/step/script', {});
@@ -65,7 +65,7 @@ describe('streamJsonLines', () => {
 
   it('yields parsed JSON objects from valid data: lines', async () => {
     const { response } = makeFakeResponse({
-      chunks: ['data: {"type":"progress","value":10}\ndata: {"type":"token","text":"hi"}\n'],
+      chunks: ['data: {"type":"progress","value":10}\n\ndata: {"type":"token","text":"hi"}\n\n'],
     });
     fetchSpy.mockResolvedValue(response);
 
@@ -82,7 +82,7 @@ describe('streamJsonLines', () => {
 
   it('stops iterating when a [DONE] line is received', async () => {
     const { response } = makeFakeResponse({
-      chunks: ['data: {"type":"progress"}\ndata: [DONE]\n', 'data: {"type":"ignored"}\n'],
+      chunks: ['data: {"type":"progress"}\n\ndata: [DONE]\n\n', 'data: {"type":"ignored"}\n\n'],
     });
     fetchSpy.mockResolvedValue(response);
 
@@ -96,7 +96,7 @@ describe('streamJsonLines', () => {
 
   it('skips malformed lines without throwing', async () => {
     const { response } = makeFakeResponse({
-      chunks: ['data: not-json\nfoo: bar\ndata: {"type":"ok"}\n'],
+      chunks: ['data: not-json\n\nfoo: bar\n\ndata: {"type":"ok"}\n\n'],
     });
     fetchSpy.mockResolvedValue(response);
 
@@ -122,7 +122,7 @@ describe('streamJsonLines', () => {
 
   it('releases the reader lock after iteration', async () => {
     const { response, releaseLock } = makeFakeResponse({
-      chunks: ['data: {"type":"a"}\ndata: [DONE]\n'],
+      chunks: ['data: {"type":"a"}\n\ndata: [DONE]\n\n'],
     });
     fetchSpy.mockResolvedValue(response);
 
