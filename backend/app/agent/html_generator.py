@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from .llm import KimiClient
-from .prompts import GENERATE_HTML, STORYBOARD
+from .prompts import GENERATE_HTML, GENERATE_SCENE_HTML, STORYBOARD
 
 logger = logging.getLogger(__name__)
 
@@ -658,3 +658,137 @@ def generate_html(composition: dict, assets: Optional[dict] = None) -> str:
             logger.warning("storyboard render failed, using minimal fallback: %s", exc)
 
     return _fallback_html(composition, assets)
+
+
+def _scene_palette(visual: str) -> str:
+    """根据 visual 关键词给出确定性渐变。"""
+    v = (visual or "").lower()
+    if any(k in v for k in ("科技", "粒子", "hud", "tech", "蓝", "代码", "数据")):
+        return "radial-gradient(ellipse at center, #0a1a2a 0%, #020203 100%)"
+    if any(k in v for k in ("暖", "日出", "橙", "sun", "warm")):
+        return "radial-gradient(ellipse at center, #3a1c0a 0%, #120604 100%)"
+    if any(k in v for k in ("自然", "绿", "forest", "leaf")):
+        return "radial-gradient(ellipse at center, #0c2a1a 0%, #020a04 100%)"
+    if any(k in v for k in ("奢", "金", "premium", "gold")):
+        return "radial-gradient(ellipse at center, #2a230a 0%, #0a0802 100%)"
+    return "linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%)"
+
+
+def _fallback_scene_html(scene: dict, composition: dict, assets: dict) -> str:
+    """LLM 不可用时，为单个 scene 生成确定性 HTML。"""
+    width = composition.get("width", 1920)
+    height = composition.get("height", 1080)
+    fps = composition.get("fps", 30)
+    duration = float(scene.get("duration", 5) or 5)
+    text = scene.get("text") or scene.get("headline") or "ClipWorks"
+    visual = scene.get("visual") or ""
+    visual_type = scene.get("visual_type") or "text"
+    brand_color = (composition.get("metadata") or {}).get("brand_color") or "#00E5FF"
+
+    images = assets.get("images") or {}
+    image_ids = assets.get("image_ids") or list(images.keys())
+    img_url = None
+    image_index = scene.get("image_index", -1)
+    if isinstance(image_index, int) and 0 <= image_index < len(image_ids):
+        img_url = images.get(image_ids[image_index])
+    if not img_url and image_ids:
+        img_url = images.get(image_ids[0])
+
+    bg = _scene_palette(visual)
+    img_tag = f'<img src="{img_url}" class="bg-image" alt="scene" />' if img_url else ""
+
+    # 根据 visual_type 微调排版
+    headline_size = min(width, height) * 0.07
+    subtext = ""
+    if visual_type == "product":
+        subtext = "产品亮点 · 一键呈现"
+    elif visual_type == "broll":
+        subtext = "真实场景 · 质感画面"
+    elif visual_type == "metaphor":
+        subtext = "意象表达 · 引发共鸣"
+
+    sub_tag = f'<div class="sub">{_escape_html(subtext)}</div>' if subtext else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scene</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ background: #000; overflow: hidden; }}
+  #stage {{
+    position: relative; width: {width}px; height: {height}px;
+    background: {bg}; overflow: hidden;
+    font-family: 'Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif;
+  }}
+  .bg-image {{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.55; animation: kenburns {duration}s ease-in-out alternate; }}
+  .scrim {{ position: absolute; inset: 0; background: rgba(0,0,0,0.45); }}
+  .copy {{ position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: {int(min(width,height)*0.08)}px; text-align: center; z-index: 10; }}
+  .headline {{ color: #fff; font-weight: 900; font-size: {int(headline_size)}px; line-height: 1.2;
+    opacity: 0; animation: titleIn 0.8s cubic-bezier(0.22,1,0.36,1) 0.2s forwards;
+    text-shadow: 0 6px 32px rgba(0,0,0,0.55), 0 0 40px {brand_color}44; }}
+  .sub {{ margin-top: {int(height*0.026)}px; color: #e8eaf6; font-weight: 600; font-size: {int(headline_size*0.55)}px;
+    opacity: 0; animation: subIn 0.8s cubic-bezier(0.22,1,0.36,1) 0.5s forwards; }}
+  .glow {{ position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(circle at 30% 70%, {brand_color}33 0%, transparent 55%);
+    animation: pulse {duration}s ease-in-out infinite alternate; }}
+  @keyframes kenburns {{ 0% {{ transform: scale(1); }} 100% {{ transform: scale(1.08); }} }}
+  @keyframes titleIn {{ 0% {{ opacity: 0; transform: translateY(40px) scale(0.96); filter: blur(10px); }} 100% {{ opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }} }}
+  @keyframes subIn {{ 0% {{ opacity: 0; transform: translateY(24px); }} 100% {{ opacity: 1; transform: translateY(0); }} }}
+  @keyframes pulse {{ 0% {{ opacity: 0.4; }} 100% {{ opacity: 0.7; }} }}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow"></div>
+  {img_tag}
+  <div class="scrim"></div>
+  <div class="copy">
+    <div class="headline">{_escape_html(text)}</div>
+    {sub_tag}
+  </div>
+</div>
+<script>window.hyperframesDuration = {duration}; window.hyperframesFps = {fps};</script>
+</body>
+</html>"""
+
+
+def generate_scene_html(scene: dict, composition: dict, assets: Optional[dict] = None) -> str:
+    """为单个 scene 生成自包含 HTML；LLM 失败时走确定性降级模板。"""
+    assets = assets or {}
+    duration = float(scene.get("duration", 5) or 5)
+    if duration <= 0:
+        duration = 5
+
+    prompt = (
+        "Scene:\n" + json.dumps(scene, ensure_ascii=False, indent=2) + "\n\n"
+        "Composition context:\n" + json.dumps(composition, ensure_ascii=False, indent=2) + "\n\n"
+        "Available image assets (local paths):\n" + json.dumps(assets.get("images", {}), ensure_ascii=False, indent=2)
+    )
+    try:
+        client = KimiClient(timeout=90, max_retries=1)
+        raw = client.chat_completion(
+            system_prompt=GENERATE_SCENE_HTML,
+            user_prompt=prompt,
+            json_mode=False,
+            max_retries=1,
+        )
+        if raw and "<" in raw:
+            html = raw.strip()
+            # 去除可能的 markdown 代码围栏
+            if html.startswith("```html"):
+                html = html.split("```html", 1)[-1]
+            if html.startswith("```"):
+                html = html.split("```", 1)[-1]
+            if html.endswith("```"):
+                html = html.rsplit("```", 1)[0]
+            html = html.strip()
+            if html.startswith(("<!DOCTYPE html>", "<html")):
+                logger.info("Generated scene HTML via LLM")
+                return html
+    except Exception as exc:
+        logger.info("LLM scene HTML generation failed: %s", exc)
+
+    return _fallback_scene_html(scene, composition, assets)
