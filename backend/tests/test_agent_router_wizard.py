@@ -129,6 +129,7 @@ def test_skip_step_returns_400(auth_client, project):
     """Running scenes before script/assets must be rejected."""
     r = auth_client.post(f"/projects/{project['id']}/agent/step/scenes", json={})
     assert r.status_code == 400
+    assert r.json()["detail"] == "Please complete assets before running scenes"
 
 
 def test_step_out_of_order(auth_client, project):
@@ -139,27 +140,6 @@ def test_step_out_of_order(auth_client, project):
 
 def test_concurrent_step_returns_409(auth_client, project, monkeypatch):
     """A second step request while one is generating must return 409."""
-    pid = project["id"]
-
-    def slow_step(*args, **kwargs):
-        yield json.dumps({"type": "token", "text": "working"})
-
-    monkeypatch.setattr("app.routers.agent.run_step", slow_step)
-
-    # start a step but do not consume the stream
-    r = auth_client.post(f"/projects/{pid}/agent/step/script", json={})
-    assert r.status_code == 200
-
-    # second step while first is in progress
-    r2 = auth_client.post(f"/projects/{pid}/agent/step/assets", json={})
-    assert r2.status_code == 409
-    assert "Already generating" in r2.json()["detail"]
-
-    # consume first stream to release lock
-    list(r.iter_lines())
-
-
-def test_step_concurrent_generation(auth_client, project, monkeypatch):
     pid = project["id"]
 
     def slow_step(*args, **kwargs):
