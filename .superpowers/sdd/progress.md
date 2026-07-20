@@ -129,3 +129,38 @@
   - renderer hyperframes tests: 5 passed
   - Remotion TypeScript compile: clean
   - e2e_hybrid.sh syntax: OK
+# Agent Loop Wizard Progress
+
+## Baseline
+- Branch: agent-loop-wizard
+- Baseline commit: 32973fd
+- Plan: docs/superpowers/plans/2026-07-16-agent-loop-wizard.md
+- Worktree: /Users/edwinhao/ClipWorks/.worktrees/agent-loop-wizard
+
+## Tasks
+- Task 1: complete (commit 3b6de72, review approved with minor findings)
+- Task 2: complete (commits 831b6c1..ff87d84, review approved after two fix rounds)
+- Task 3: complete (commits c460e04..9a501eb, review approved after two fix rounds)
+- Task 4: complete (commits 23a0e40..81b7d72, review approved after one fix round)
+- Task 5: complete (commits 4e49b2a..42817d5, review approved after one fix round)
+- Task 6: complete (commits df67456..936c587, review approved after one fix round)
+- Task 7: complete (commits 936c587..df14437, review approved after one fix round)
+- Task 8: complete (commits 7df1b85..06bd008, review approved after one fix round)
+- Final whole-branch review: complete (commits 06bd008..8cd8ffa, final fixes approved)
+- Status: ready for user decision on merge/PR
+
+## Environment Notes
+- Docker unavailable (timeout), so backend integration tests requiring Postgres cannot run locally.
+- Backend/frontend dependencies shared from main workspace via symlinks to backend/.venv and frontend/node_modules.
+- Subagents should run unit tests that don't require Postgres; integration tests will be validated when the stack is available.
+
+## Minor findings recorded during Task 1 review
+
+- `backend/app/agent/steps/script_step.py:_extract_script_json`: `parse_json` can return a non-dict; add `isinstance(data, dict)` guard.
+- `backend/app/agent/steps/_base.py:extract_json_block`: naive splitting may pick wrong fenced block; use regex anchored to ```` ```json ````.
+- `backend/app/agent/steps/script_step.py:run`: only catches `LLMUnavailableError`; wrap streaming body in broad `except Exception` that yields `sse_error` + fallback + `sse_done`.
+- `backend/tests/agent/test_steps.py`: add coverage for fallback, SSE helpers, and `_build_context`.
+- `backend/app/agent/steps/script_step.py` / `_base.py`: remove unused `json` / `re` imports.
+- `backend/app/agent/steps/_fallbacks.py:fallback_script`: align default duration (30 vs 20) and either use `state` param or remove it.
+
+## appended below previous ledgers
