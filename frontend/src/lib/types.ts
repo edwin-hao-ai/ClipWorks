@@ -6,10 +6,80 @@ export interface User {
   provider?: string;
 }
 
+export type AgentStep =
+  | 'idle'
+  | 'script'
+  | 'assets'
+  | 'scenes'
+  | 'effects'
+  | 'approved'
+  | 'chatting'
+  | 'pending_approval'
+  | 'generating';
+
+export interface AgentScript {
+  title: string;
+  hook: string;
+  roles: { name: string; perspective: string }[];
+  narrative_arc: string;
+  cta: string;
+  duration: number;
+  format: '16:9' | '9:16' | '1:1';
+}
+
+export interface AgentAssetItem {
+  type: 'image' | 'video' | 'music' | 'generated_image';
+  description: string;
+  query: string;
+  count: number;
+}
+
+export interface AgentAssetPlan {
+  needed: AgentAssetItem[];
+}
+
+export interface AgentSceneItem {
+  start: number;
+  duration: number;
+  description: string;
+  visual: string;
+  text: string;
+  visual_type: 'product' | 'broll' | 'metaphor' | 'text';
+  shot: string;
+  transition: string;
+  lower_third: string;
+  required_assets: number[];
+  visual_style?: string;
+  animation_keywords?: string[];
+  generate_image?: boolean;
+  generate_image_prompt?: string;
+}
+
+export interface AgentScenePlan {
+  scenes: AgentSceneItem[];
+}
+
+export interface AgentEffectItem {
+  scene_index: number;
+  visual_style: string;
+  animation_keywords: string[];
+  generate_image: boolean;
+  generate_image_prompt: string;
+}
+
+export interface AgentEffectPlan {
+  effects: AgentEffectItem[];
+}
+
 export interface AgentState {
-  step: 'idle' | 'chatting' | 'pending_approval' | 'generating';
+  step: AgentStep;
+  generating_step?: AgentStep | null;
   messages?: { role: 'user' | 'assistant'; content: string }[];
   pending_plan?: AgentPlan | null;
+  script?: AgentScript | null;
+  assets?: AgentAssetPlan | null;
+  scenes?: AgentScenePlan | null;
+  effects?: AgentEffectPlan | null;
 }
 
 export interface AgentPlan {
