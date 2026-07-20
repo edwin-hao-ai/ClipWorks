@@ -627,25 +627,52 @@ def render_video_task(
         db.commit()
 
         _append_log(job, "生成 HyperFrames HTML 动画…")
+        _html_path = ""
+        _html_url = ""
         try:
-            html_path, html_url = _write_project_html(project_id, comp_json, assets)
-            job.html_output_path = html_path
-            job.html_output_url = html_url
+            _html_path, _html_url = _write_project_html(project_id, comp_json, assets)
+            job.html_output_path = _html_path
+            job.html_output_url = _html_url
             _append_log(job, "HTML 预览已生成")
         except Exception as html_exc:
             logger.warning("HTML generation failed for job=%s: %s", job_id, html_exc)
             _append_log(job, f"HTML 生成失败：{str(html_exc)[:120]}，将使用兜底 HTML")
             # Try once more with a minimal fallback HTML so rendering can still proceed.
-            html_path, html_url = _write_project_html(project_id, comp_json, {})
-            job.html_output_path = html_path
-            job.html_output_url = html_url
+            _html_path, _html_url = _write_project_html(project_id, comp_json, {})
+            job.html_output_path = _html_path
+            job.html_output_url = _html_url
+
+        # 默认走 hybrid：拆分 scene -> HF 预渲染 -> Remotion 总装
+        selected_engine = engine or "hybrid"
+        if selected_engine == "hybrid":
+            _append_log(job, "进入 Hybrid 渲染：逐场景生成 HTML 动画…")
+            db.commit()
+            try:
+                scenes = _derive_scenes(comp_json)
+                if scenes:
+                    html_paths = _write_scene_htmls(project_id, scenes, comp_json, assets, job, db)
+                    scene_results = _prerender_scenes(project_id, scenes, html_paths, job, db)
+                    fallback_count = sum(1 for _, fb in scene_results.values() if fb)
+                    success_count = len(scene_results) - fallback_count
+                    _append_log(job, f"场景预渲染完成：{success_count} 个成功，{fallback_count} 个回退 Remotion")
+                    comp_json = _build_assembly_composition(comp_json, scenes, scene_results, project)
+                    _append_log(job, "总装时间线已构建")
+                else:
+                    _append_log(job, "未识别到 scene，将使用 Remotion 直接渲染")
+                    selected_engine = "remotion"
+            except Exception as hybrid_exc:
+                logger.warning("Hybrid pipeline failed for job=%s: %s", job_id, hybrid_exc)
+                _append_log(job, f"Hybrid 流程失败：{str(hybrid_exc)[:120]}，回退纯 Remotion")
+                selected_engine = "remotion"
+            db.commit()
+
         job.progress = 70
         db.commit()
 
-        logger.info(f"Render request engine={engine!r} for job={job_id}")
+        logger.info(f"Render request engine={selected_engine!r} for job={job_id}")
         _append_log(
             job,
-            f"调用渲染引擎 {engine or 'auto'} 合成视频，引擎较慢时这一步可能需要 1-2 分钟…",
+            f"调用渲染引擎 {selected_engine or 'auto'} 合成视频，引擎较慢时这一步可能需要 1-2 分钟…",
         )
         # Flush the heartbeat immediately so the SSE stream shows it; otherwise
         # the user stares at the previous log line until the renderer returns.
@@ -654,16 +681,19 @@ def render_video_task(
         if _guard_cancel(db, job, project):
             return
 
+        # 刷新 project 关系，确保 RemotionProvider 能解析到刚刚创建的 scene MP4 素材
+        db.refresh(project)
+
         request = RenderRequest(
-            engine=engine,
+            engine=selected_engine,
             composition=comp_json,
             assets=assets,
             raw_assets=raw_assets,
             user_prompt=prompt,
             source_url=project.source_url,
             engine_hint=plan.get("engine_hint") if isinstance(plan, dict) else None,
-            html_path=html_path,
-            html_url=html_url,
+            html_path=_html_path,
+            html_url=_html_url,
         )
         job.progress = 80
         _append_log(job, "渲染请求已发送，引擎正在出片（Remotion 约需 1-3 分钟）…")

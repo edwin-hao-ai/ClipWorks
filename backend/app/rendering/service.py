@@ -36,9 +36,12 @@ class RenderService:
         # 否则一旦首选引擎（如 hyperframes）在当前环境不可用，就会因为各 provider
         # 的 can_handle 按 engine 名过滤而直接跌落到 Mock 占位片。
         order_names: list[str] = []
-        if engine in provider_map:
-            order_names.append(engine)
-        for name in ("hyperframes", "remotion"):
+        preferred = engine
+        if preferred == "hybrid":
+            preferred = "remotion"
+        if preferred in provider_map:
+            order_names.append(preferred)
+        for name in ("remotion", "hyperframes"):
             if name in provider_map and name not in order_names:
                 order_names.append(name)
         # 其余已注册的真实引擎（含 video-use 或测试替身）按注册顺序补入；
