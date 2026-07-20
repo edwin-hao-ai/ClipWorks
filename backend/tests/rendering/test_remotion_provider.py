@@ -13,6 +13,18 @@ async def test_remotion_provider_can_handle():
     assert provider.can_handle(RenderRequest(engine="hyperframes", composition={}, assets={})) is False
 
 
+def test_remotion_provider_handles_hybrid_engine():
+    provider = RemotionProvider()
+    request = RenderRequest(composition={}, assets={}, engine="hybrid")
+    assert provider.can_handle(request)
+
+
+def test_remotion_provider_still_rejects_unknown_engine():
+    provider = RemotionProvider()
+    request = RenderRequest(composition={}, assets={}, engine="video-use")
+    assert not provider.can_handle(request)
+
+
 @pytest.mark.asyncio
 async def test_remotion_provider_calls_renderer(monkeypatch, tmp_path):
     provider = RemotionProvider()
