@@ -1,6 +1,3 @@
-import asyncio
-import hashlib
-import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -199,7 +196,7 @@ def _build_assets(project: Project, db, stock_queries: Optional[list[str]] = Non
       images:           {asset_id: /api/static url}（HyperFrames 预览用）
       scraped:          原始抓取结果（标题/描述等供 AI 参考）
     """
-    from app.config import ASSETS_BASE_URL, ASSETS_DIR
+    from app.config import ASSETS_DIR
     from app.services.assets import resolve_image_asset, persist_asset
     from app.services.scraper import scrape_url
     import os
@@ -320,13 +317,6 @@ def _derive_scenes(comp_json: dict) -> list[dict]:
     return merged
 
 
-def _scene_cache_key(project_id: str, idx: int, scene: dict, composition: dict) -> str:
-    """基于 scene 内容与项目画幅生成缓存键，用于复用未改动的 scene 片段。"""
-    style = (composition.get("metadata") or {}).get("style", "")
-    payload = json.dumps({"project_id": project_id, "idx": idx, "scene": scene, "style": style}, ensure_ascii=False, sort_keys=True)
-    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
-
-
 def _write_scene_htmls(
     project_id: str,
     scenes: list[dict],
@@ -363,47 +353,37 @@ def _prerender_scenes(
     job: RenderJob,
     db,
 ) -> dict[int, tuple[str, bool]]:
-    """调用 renderer /render/hyperframes 把每个 scene HTML 渲染成 MP4。
+    """调用 renderer /render/hyperframes 把每个 scene HTML 同步顺序渲染成 MP4。
 
     返回 index -> (scene_asset_id, fallback_to_remotion) 的映射。
     fallback_to_remotion=True 表示该 scene HF 渲染失败，应让 Remotion 用内置动效渲染。
     """
-    from app.config import ASSETS_BASE_URL
-
     render_dir = os.path.join(ASSETS_DIR, project_id, f"render_{job.id}")
     os.makedirs(render_dir, exist_ok=True)
     results: dict[int, tuple[str, bool]] = {}
 
-    concurrency = int(os.getenv("HF_CONCURRENCY", "1"))
-
-    async def _render_one(idx: int, html_path: str) -> tuple[int, str, bool]:
+    for idx, scene in enumerate(scenes):
+        html_path = html_paths[idx]
         output_path = os.path.join(render_dir, f"scene_{idx}.mp4")
+        fallback = True
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
-                resp = await client.post(
+            with httpx.Client(timeout=120) as client:
+                resp = client.post(
                     f"{RENDERER_URL}/render/hyperframes",
                     json={"html_path": html_path, "output_path": output_path},
                 )
                 data = resp.json()
-                if data.get("success"):
-                    return idx, output_path, False
+                if data.get("success") and os.path.exists(output_path):
+                    fallback = False
+                elif data.get("success"):
+                    logger.warning(
+                        "HF prerender scene %d reported success but output missing: %s",
+                        idx,
+                        output_path,
+                    )
         except Exception as exc:
             logger.warning("HF prerender scene %d failed: %s", idx, exc)
-        return idx, "", True
 
-    async def _run_all():
-        sem = asyncio.Semaphore(max(1, concurrency))
-
-        async def bounded(idx: int, html_path: str):
-            async with sem:
-                return await _render_one(idx, html_path)
-
-        tasks = [bounded(idx, html_paths[idx]) for idx in range(len(scenes))]
-        return await asyncio.gather(*tasks)
-
-    outputs = asyncio.run(_run_all())
-
-    for idx, output_path, fallback in outputs:
         if fallback:
             _append_log(job, f"场景 {idx + 1}/{len(scenes)} HF 预渲染失败，将回退 Remotion 默认动效")
             results[idx] = ("", True)
@@ -433,9 +413,11 @@ def _build_assembly_composition(
     scene_results: dict[int, tuple[str, bool]],
     project,
 ) -> dict:
-    """把原 composition 中每个 scene 范围内的 video/image clip 替换为预渲染的 scene MP4。
+    """把原 composition 中与 scene 时间范围相交的 video/image clip 替换为预渲染的 scene MP4。
 
-    fallback scene（HF 失败）不插入 video clip，保留原 visual clip 让 Remotion 自行渲染。
+    采用区间相交判断：只要 clip 与某 scene 有重叠，即视为属于该 scene。
+    HF 成功的 scene 会删除所有相交 clip 并插入一条 scene MP4；HF 失败的 scene
+    保留原 clip，让 Remotion 用内置动效兜底。
     """
     import copy
 
@@ -454,39 +436,30 @@ def _build_assembly_composition(
             c_start = float(clip.get("start_time", 0) or 0)
             c_dur = float(clip.get("duration", 5) or 5)
             c_end = c_start + c_dur
-            # 判断该 clip 是否完全落在某个 scene 内
-            matched_scene_idx = None
+
+            # 判断该 clip 是否与某个 scene 相交
+            intersects_success_idx: Optional[int] = None
+            intersects_fallback = False
             for s_idx, scene in enumerate(scenes):
+                if s_idx not in scene_results:
+                    continue
                 s_start = float(scene.get("start", 0))
                 s_dur = float(scene.get("duration", scene.get("dur", 5)))
                 s_end = s_start + s_dur
-                if abs(c_start - s_start) < 0.1 and abs(c_end - s_end) < 0.1:
-                    matched_scene_idx = s_idx
-                    break
-            if matched_scene_idx is not None and matched_scene_idx in scene_results:
-                asset_id, fallback = scene_results[matched_scene_idx]
-                if fallback:
-                    # 保留原 clip，让 Remotion 用 KenBurns/MotionText 兜底
-                    kept_clips.append(clip)
-                else:
-                    # 同一 scene 只保留一个 video clip；后续同 scene clip 跳过
-                    if not any(
-                        c.get("style", {}).get("scene_index") == matched_scene_idx
-                        for c in kept_clips
-                    ):
-                        scene = scenes[matched_scene_idx]
-                        kept_clips.append({
-                            "start_time": scene.get("start", 0),
-                            "duration": scene.get("duration", 5),
-                            "asset_id": asset_id,
-                            "position": {"x": 0, "y": 0, "width": assembly.get("width", 1920), "height": assembly.get("height", 1080)},
-                            "style": {
-                                "transition": scene.get("transition", "fade"),
-                                "scene_index": matched_scene_idx,
-                                "source": "hyperframes",
-                            },
-                            "text_content": "",
-                        })
+                if max(c_start, s_start) < min(c_end, s_end):
+                    _, fallback = scene_results[s_idx]
+                    if fallback:
+                        intersects_fallback = True
+                    else:
+                        intersects_success_idx = s_idx
+                        break
+
+            if intersects_success_idx is not None:
+                # HF 成功的 scene 会统一插入一条 scene MP4，原 clip 删除
+                continue
+            if intersects_fallback:
+                # 保留原 clip，让 Remotion 用 KenBurns/MotionText 兜底
+                kept_clips.append(clip)
             else:
                 kept_clips.append(clip)
 
@@ -495,7 +468,7 @@ def _build_assembly_composition(
             new_track["clips"] = kept_clips
             new_tracks.append(new_track)
 
-    # 把未匹配到 video/image 轨的 scene 单独插入一条 video 轨（兜底）
+    # 为 HF 成功但未在 video/image 轨上体现出来的 scene 单独插入一条 video 轨（兜底）
     orphan_scene_clips = []
     for s_idx, scene in enumerate(scenes):
         if s_idx not in scene_results:
@@ -503,7 +476,6 @@ def _build_assembly_composition(
         asset_id, fallback = scene_results[s_idx]
         if fallback:
             continue
-        # 简单检查是否已有该 scene 的 clip
         if not any(
             c.get("style", {}).get("scene_index") == s_idx
             for t in new_tracks for c in t.get("clips", [])

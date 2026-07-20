@@ -24,20 +24,20 @@ curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" -X POST "$API/auth/mock-login?provider
 PROJECT_JSON=$(curl -s -b "$COOKIE_JAR" -X POST "$API/projects/" \
   -H "Content-Type: application/json" \
   -d '{"title":"Hybrid E2E","source_url":"https://example.com","target_format":"16:9","target_duration":10}')
-PROJECT_ID=$(echo "$PROJECT_JSON" | python -c "import sys,json; print(json.load(sys.stdin)['id'])")
+PROJECT_ID=$(echo "$PROJECT_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 echo "Project: $PROJECT_ID"
 
 # 3) 触发 hybrid 渲染
 JOB_JSON=$(curl -s -b "$COOKIE_JAR" -X POST "$API/projects/$PROJECT_ID/renders/agent-generate" \
   -H "Content-Type: application/json" \
   -d '{"prompt":"一句话介绍 ClipWorks","engine":"hybrid"}')
-JOB_ID=$(echo "$JOB_JSON" | python -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
+JOB_ID=$(echo "$JOB_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['job_id'])")
 echo "Job: $JOB_ID"
 
 # 4) 轮询等待完成（最多 10 分钟）
 for i in $(seq 1 120); do
   STATUS_JSON=$(curl -s -b "$COOKIE_JAR" "$API/projects/$PROJECT_ID/renders/$JOB_ID")
-  STATUS=$(echo "$STATUS_JSON" | python -c "import sys,json; print(json.load(sys.stdin)['status'])")
+  STATUS=$(echo "$STATUS_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
   echo "  [$i] status=$STATUS"
   if [ "$STATUS" = "completed" ]; then
     echo "$STATUS_JSON" > "$STATUS_FILE"
@@ -57,7 +57,7 @@ fi
 
 # 5) 校验最终输出信息
 STATUS=$(cat "$STATUS_FILE")
-OUTPUT_URL=$(echo "$STATUS" | python -c "import sys,json; print(json.load(sys.stdin).get('output_url',''))")
+OUTPUT_URL=$(echo "$STATUS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('output_url',''))")
 echo "Output URL: $OUTPUT_URL"
 
 if echo "$OUTPUT_URL" | grep -q "sample.mp4"; then
