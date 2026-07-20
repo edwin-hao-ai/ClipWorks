@@ -1,3 +1,8 @@
+"""Router tests for the Agent Loop Wizard.
+
+These tests use self-contained fixtures so they can exercise wizard state
+step transitions without relying on the full planning chat flow.
+"""
 import json
 from unittest.mock import patch
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import modify_video
 from app.agent.conversation import stream_planning_response, build_fallback_plan
-from app.agent.steps import run_step, ORDER, previous_step
+from app.agent.steps import ORDER, run_step, previous_step
 from app.database import get_db
 from app.models import Project, User, RenderJob
 from app.routers.auth import get_current_user
@@ -122,7 +122,7 @@ def _validate_step_order(state: dict, step_name: str):
     if step_name == "script":
         return
     required = previous_step(step_name)
-    if required and current not in {required, step_name} and not state.get(required):
+    if required and current not in {required, step_name} and state.get(required) is None:
         raise HTTPException(
             status_code=400,
             detail=f"Please complete {required} before running {step_name}",
@@ -148,8 +148,9 @@ def update_agent_state(
 ):
     project = _require_project(project_id, user, db)
     state = _load_state(project)
-    # 仅允许编辑分步骤数据与当前步骤标记；messages 只在显式提供时才覆盖。
-    for key in ["script", "assets", "scenes", "effects", "step", "generating_step"]:
+    # 仅允许客户端编辑业务数据与当前步骤标记；generating_step 由 /step 端点内部管理，
+    # 避免并发流执行期间被外部覆盖。messages 可编辑，用于 UI 预置对话历史。
+    for key in ["script", "assets", "scenes", "effects", "step"]:
         if key in payload.state:
             state[key] = payload.state[key]
     if "messages" in payload.state:
@@ -167,9 +168,16 @@ def run_agent_step(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if step_name not in ("script", "assets", "scenes", "effects"):
+    if step_name not in ORDER:
         raise HTTPException(status_code=400, detail="Invalid step name")
-    project = _require_project(project_id, user, db)
+    # 先校验权限，再对项目行加 SELECT FOR UPDATE，保证并发检查/设置 generating_step 原子化。
+    _require_project(project_id, user, db)
+    project = (
+        db.query(Project)
+        .filter(Project.id == project_id)
+        .with_for_update()
+        .first()
+    )
     state = _load_state(project)
     if state.get("generating_step"):
         raise HTTPException(
@@ -191,9 +199,19 @@ def run_agent_step(
             logger.exception("Step %s failed", step_name)
             yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
         finally:
-            state["generating_step"] = None
-            project.agent_state = state
-            db.commit()
+            # 事务提交后行锁已释放，重新查询并清除 generating_step；
+            # 同时保留流执行过程中更新的 step，避免覆盖为旧值。
+            current_project = db.query(Project).filter(Project.id == project_id).first()
+            if current_project:
+                fresh_state = _load_state(current_project)
+                fresh_state["step"] = state.get("step", fresh_state.get("step"))
+                fresh_state["generating_step"] = None
+                current_project.agent_state = fresh_state
+                try:
+                    db.commit()
+                except Exception:
+                    logger.exception("Failed to clear generating_step for %s", project_id)
+                    db.rollback()
         yield f"data: {json.dumps({'type': 'done', 'step': step_name}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
