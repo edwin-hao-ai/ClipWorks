@@ -1,12 +1,17 @@
+import asyncio
+import hashlib
+import json
 import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
+
 from app.celery_app import celery_app
-from app.config import ASSETS_DIR
+from app.config import ASSETS_DIR, RENDERER_URL
 from app.database import SessionLocal
-from app.models import Project, RenderJob, User
+from app.models import MediaAsset, Project, RenderJob, User
 from app.rendering.provider import RenderRequest
 from app.rendering.service import RenderService
 
@@ -274,6 +279,251 @@ def _write_project_html(project_id: str, composition: dict, assets: dict) -> tup
         f.write(html)
     rel = os.path.relpath(html_path, ASSETS_DIR).replace(os.path.sep, "/")
     return html_path, f"/api/static/{rel}"
+
+
+def _derive_scenes(comp_json: dict) -> list[dict]:
+    """从 composition 中提取 scene 列表。优先使用 plan.scenes，否则从 text/video 轨推导。"""
+    plan = (comp_json.get("metadata") or {}).get("plan") or {}
+    scenes = plan.get("scenes")
+    if isinstance(scenes, list) and scenes:
+        return [dict(s) for s in scenes]
+
+    # 无 plan.scenes 时，从 text 轨 + video 轨的 clip 边界推导
+    clips: list[dict] = []
+    for track in comp_json.get("tracks", []) or []:
+        ttype = track.get("type")
+        if ttype not in {"text", "video", "image", "overlay"}:
+            continue
+        for clip in track.get("clips", []) or []:
+            clips.append({
+                "start": float(clip.get("start_time", 0) or 0),
+                "duration": float(clip.get("duration", 5) or 5),
+                "text": clip.get("text_content", ""),
+                "visual": (clip.get("style") or {}).get("visual", ""),
+                "transition": (clip.get("style") or {}).get("transition", "fade"),
+                "lower_third": (clip.get("style") or {}).get("lower_third", ""),
+                "visual_type": (clip.get("style") or {}).get("visual_type", "text"),
+                "narration": (clip.get("style") or {}).get("narration", ""),
+                "shot": (clip.get("style") or {}).get("shot", ""),
+            })
+    clips.sort(key=lambda c: c["start"])
+    # 合并同一 start 的 clip
+    merged: list[dict] = []
+    for c in clips:
+        if merged and abs(merged[-1]["start"] - c["start"]) < 0.1:
+            if c["text"] and not merged[-1]["text"]:
+                merged[-1]["text"] = c["text"]
+            if c["visual"] and not merged[-1]["visual"]:
+                merged[-1]["visual"] = c["visual"]
+        else:
+            merged.append(dict(c))
+    return merged
+
+
+def _scene_cache_key(project_id: str, idx: int, scene: dict, composition: dict) -> str:
+    """基于 scene 内容与项目画幅生成缓存键，用于复用未改动的 scene 片段。"""
+    style = (composition.get("metadata") or {}).get("style", "")
+    payload = json.dumps({"project_id": project_id, "idx": idx, "scene": scene, "style": style}, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _write_scene_htmls(
+    project_id: str,
+    scenes: list[dict],
+    composition: dict,
+    assets: dict,
+    job: RenderJob,
+    db,
+) -> dict[int, str]:
+    """为每个 scene 生成独立 HTML，返回 index -> html_path 映射。"""
+    from app.agent import generate_scene_html
+
+    render_dir = os.path.join(ASSETS_DIR, project_id, f"render_{job.id}")
+    os.makedirs(render_dir, exist_ok=True)
+    html_paths: dict[int, str] = {}
+    for idx, scene in enumerate(scenes):
+        html_path = os.path.join(render_dir, f"scene_{idx}.html")
+        try:
+            html = generate_scene_html(scene, composition, assets)
+        except Exception as exc:
+            logger.warning("generate_scene_html failed for scene %d: %s", idx, exc)
+            html = generate_scene_html(scene, composition, {})
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        html_paths[idx] = html_path
+        _append_log(job, f"场景 HTML 已生成 {idx + 1}/{len(scenes)}")
+        db.commit()
+    return html_paths
+
+
+def _prerender_scenes(
+    project_id: str,
+    scenes: list[dict],
+    html_paths: dict[int, str],
+    job: RenderJob,
+    db,
+) -> dict[int, tuple[str, bool]]:
+    """调用 renderer /render/hyperframes 把每个 scene HTML 渲染成 MP4。
+
+    返回 index -> (scene_asset_id, fallback_to_remotion) 的映射。
+    fallback_to_remotion=True 表示该 scene HF 渲染失败，应让 Remotion 用内置动效渲染。
+    """
+    from app.config import ASSETS_BASE_URL
+
+    render_dir = os.path.join(ASSETS_DIR, project_id, f"render_{job.id}")
+    os.makedirs(render_dir, exist_ok=True)
+    results: dict[int, tuple[str, bool]] = {}
+
+    concurrency = int(os.getenv("HF_CONCURRENCY", "1"))
+
+    async def _render_one(idx: int, html_path: str) -> tuple[int, str, bool]:
+        output_path = os.path.join(render_dir, f"scene_{idx}.mp4")
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(
+                    f"{RENDERER_URL}/render/hyperframes",
+                    json={"html_path": html_path, "output_path": output_path},
+                )
+                data = resp.json()
+                if data.get("success"):
+                    return idx, output_path, False
+        except Exception as exc:
+            logger.warning("HF prerender scene %d failed: %s", idx, exc)
+        return idx, "", True
+
+    async def _run_all():
+        sem = asyncio.Semaphore(max(1, concurrency))
+
+        async def bounded(idx: int, html_path: str):
+            async with sem:
+                return await _render_one(idx, html_path)
+
+        tasks = [bounded(idx, html_paths[idx]) for idx in range(len(scenes))]
+        return await asyncio.gather(*tasks)
+
+    outputs = asyncio.run(_run_all())
+
+    for idx, output_path, fallback in outputs:
+        if fallback:
+            _append_log(job, f"场景 {idx + 1}/{len(scenes)} HF 预渲染失败，将回退 Remotion 默认动效")
+            results[idx] = ("", True)
+            db.commit()
+            continue
+
+        # 注册为 MediaAsset，方便 Remotion 通过 asset_id 引用
+        asset = MediaAsset(
+            project_id=project_id,
+            type="video",
+            source="generated",
+            local_path=os.path.abspath(output_path),
+            metadata_={"name": f"第 {idx + 1} 镜动效预览", "scene_index": idx},
+        )
+        db.add(asset)
+        db.flush()
+        results[idx] = (asset.id, False)
+        _append_log(job, f"场景预渲染完成 {idx + 1}/{len(scenes)}")
+        db.commit()
+
+    return results
+
+
+def _build_assembly_composition(
+    comp_json: dict,
+    scenes: list[dict],
+    scene_results: dict[int, tuple[str, bool]],
+    project,
+) -> dict:
+    """把原 composition 中每个 scene 范围内的 video/image clip 替换为预渲染的 scene MP4。
+
+    fallback scene（HF 失败）不插入 video clip，保留原 visual clip 让 Remotion 自行渲染。
+    """
+    import copy
+
+    assembly = copy.deepcopy(comp_json)
+    tracks = assembly.get("tracks", []) or []
+    new_tracks: list[dict] = []
+
+    for track in tracks:
+        ttype = track.get("type")
+        if ttype not in {"video", "image"}:
+            new_tracks.append(track)
+            continue
+
+        kept_clips: list[dict] = []
+        for clip in track.get("clips", []) or []:
+            c_start = float(clip.get("start_time", 0) or 0)
+            c_dur = float(clip.get("duration", 5) or 5)
+            c_end = c_start + c_dur
+            # 判断该 clip 是否完全落在某个 scene 内
+            matched_scene_idx = None
+            for s_idx, scene in enumerate(scenes):
+                s_start = float(scene.get("start", 0))
+                s_dur = float(scene.get("duration", scene.get("dur", 5)))
+                s_end = s_start + s_dur
+                if abs(c_start - s_start) < 0.1 and abs(c_end - s_end) < 0.1:
+                    matched_scene_idx = s_idx
+                    break
+            if matched_scene_idx is not None and matched_scene_idx in scene_results:
+                asset_id, fallback = scene_results[matched_scene_idx]
+                if fallback:
+                    # 保留原 clip，让 Remotion 用 KenBurns/MotionText 兜底
+                    kept_clips.append(clip)
+                else:
+                    # 同一 scene 只保留一个 video clip；后续同 scene clip 跳过
+                    if not any(
+                        c.get("style", {}).get("scene_index") == matched_scene_idx
+                        for c in kept_clips
+                    ):
+                        scene = scenes[matched_scene_idx]
+                        kept_clips.append({
+                            "start_time": scene.get("start", 0),
+                            "duration": scene.get("duration", 5),
+                            "asset_id": asset_id,
+                            "position": {"x": 0, "y": 0, "width": assembly.get("width", 1920), "height": assembly.get("height", 1080)},
+                            "style": {
+                                "transition": scene.get("transition", "fade"),
+                                "scene_index": matched_scene_idx,
+                                "source": "hyperframes",
+                            },
+                            "text_content": "",
+                        })
+            else:
+                kept_clips.append(clip)
+
+        if kept_clips:
+            new_track = dict(track)
+            new_track["clips"] = kept_clips
+            new_tracks.append(new_track)
+
+    # 把未匹配到 video/image 轨的 scene 单独插入一条 video 轨（兜底）
+    orphan_scene_clips = []
+    for s_idx, scene in enumerate(scenes):
+        if s_idx not in scene_results:
+            continue
+        asset_id, fallback = scene_results[s_idx]
+        if fallback:
+            continue
+        # 简单检查是否已有该 scene 的 clip
+        if not any(
+            c.get("style", {}).get("scene_index") == s_idx
+            for t in new_tracks for c in t.get("clips", [])
+        ):
+            orphan_scene_clips.append({
+                "start_time": scene.get("start", 0),
+                "duration": scene.get("duration", 5),
+                "asset_id": asset_id,
+                "position": {"x": 0, "y": 0, "width": assembly.get("width", 1920), "height": assembly.get("height", 1080)},
+                "style": {"transition": scene.get("transition", "fade"), "scene_index": s_idx, "source": "hyperframes"},
+                "text_content": "",
+            })
+    if orphan_scene_clips:
+        new_tracks.insert(0, {"type": "video", "index": -1, "name": "HF Scenes", "clips": orphan_scene_clips})
+
+    assembly["tracks"] = new_tracks
+    # 标记总装 composition 来源，便于 Remotion 端识别
+    assembly["metadata"] = assembly.get("metadata") or {}
+    assembly["metadata"]["engine"] = "hybrid"
+    return assembly
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30, time_limit=900, soft_time_limit=840)
