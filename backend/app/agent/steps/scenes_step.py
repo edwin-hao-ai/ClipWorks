@@ -47,9 +47,15 @@ def run(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]
     except LLMUnavailableError as exc:
         logger.warning("Scenes step LLM unavailable: %s", exc)
         scenes = fallback_scenes(project, state)
+        state["scenes"] = scenes
         yield sse_token("AI 暂不可用，已生成默认场景。")
         yield sse_done()
-        state["scenes"] = scenes
+        return
+    except Exception as exc:
+        logger.exception("Scenes step failed: %s", exc)
+        yield sse_error("场景生成失败，已使用默认场景。")
+        state["scenes"] = fallback_scenes(project, state)
+        yield sse_done()
         return
 
     parsed = _extract_scenes_json(full_text)

@@ -44,9 +44,15 @@ def run(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]
     except LLMUnavailableError as exc:
         logger.warning("Effects step LLM unavailable: %s", exc)
         effects = fallback_effects(project, state)
+        state["effects"] = effects
         yield sse_token("AI 暂不可用，已生成默认动效。")
         yield sse_done()
-        state["effects"] = effects
+        return
+    except Exception as exc:
+        logger.exception("Effects step failed: %s", exc)
+        yield sse_error("动效生成失败，已使用默认动效。")
+        state["effects"] = fallback_effects(project, state)
+        yield sse_done()
         return
 
     parsed = _extract_effects_json(full_text)

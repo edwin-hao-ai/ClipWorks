@@ -51,9 +51,9 @@ def run(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]
     except LLMUnavailableError as exc:
         logger.warning("Script step LLM unavailable: %s", exc)
         script = fallback_script(project)
+        state["script"] = script
         yield sse_token("AI 暂不可用，已生成可编辑默认脚本。")
         yield sse_done()
-        state["script"] = script
         return
     except Exception as exc:
         logger.exception("Script step failed: %s", exc)
@@ -69,5 +69,5 @@ def run(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]
     else:
         logger.warning("Script step produced unparseable output: %s", full_text)
         yield sse_error("无法解析脚本，请手动编辑或重试。")
-        state["script"] = fallback_script(project, state)
+        state["script"] = fallback_script(project)
     yield sse_done()

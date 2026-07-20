@@ -42,9 +42,15 @@ def run(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]
     except LLMUnavailableError as exc:
         logger.warning("Assets step LLM unavailable: %s", exc)
         assets = fallback_assets(project, state)
+        state["assets"] = assets
         yield sse_token("AI 暂不可用，已生成默认素材清单。")
         yield sse_done()
-        state["assets"] = assets
+        return
+    except Exception as exc:
+        logger.exception("Assets step failed: %s", exc)
+        yield sse_error("素材清单生成失败，已使用默认素材清单。")
+        state["assets"] = fallback_assets(project, state)
+        yield sse_done()
         return
 
     parsed = _extract_assets_json(full_text)

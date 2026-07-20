@@ -1,7 +1,10 @@
 import json
 import pytest
-from app.agent.steps.script_step import _extract_script_json
+from app.agent.llm import LLMUnavailableError
+from app.agent.steps.script_step import _extract_script_json, run as run_script, _build_context as build_script_context
+from app.agent.steps.assets_step import run as run_assets
 from app.agent.steps import run_step, previous_step, STEPS, ORDER
+from app.agent.steps._fallbacks import fallback_script, fallback_assets, fallback_scenes, fallback_effects
 
 
 class FakeProject:
@@ -73,3 +76,120 @@ def test_extract_effects_json():
     text = '```json\n{"effects": [{"scene_index": 0, "visual_style": "V", "animation_keywords": ["a"], "generate_image": true, "generate_image_prompt": "P"}]}\n```'
     result = _extract_effects_json(text)
     assert result["effects"][0]["scene_index"] == 0
+
+
+def test_build_script_context_includes_project_meta():
+    project = FakeProject()
+    state = {}
+    ctx = build_script_context(project, state, "make a promo")
+    assert f"Project title: {project.title}" in ctx
+    assert "Target format: 16:9" in ctx
+    assert "Target duration: 30s" in ctx
+    assert "User brief / feedback: make a promo" in ctx
+
+
+def test_script_step_run_unparseable_output_uses_fallback(monkeypatch):
+    project = FakeProject()
+    state = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            yield "not valid json"
+
+    monkeypatch.setattr("app.agent.steps.script_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_script(project, state, None)]
+
+    assert any(e["type"] == "error" for e in events)
+    assert events[-1]["type"] == "done"
+    assert state["script"] is not None
+    required = {"title", "hook", "roles", "narrative_arc", "cta", "duration", "format"}
+    assert required.issubset(state["script"].keys())
+
+
+def test_script_step_run_llm_unavailable_uses_fallback(monkeypatch):
+    project = FakeProject()
+    state = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            raise LLMUnavailableError("no api key")
+            yield ""
+
+    monkeypatch.setattr("app.agent.steps.script_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_script(project, state, None)]
+
+    assert all(e["type"] in ("token", "done") for e in events)
+    assert events[-1]["type"] == "done"
+    assert "script" in state
+    required = {"title", "hook", "roles", "narrative_arc", "cta", "duration", "format"}
+    assert required.issubset(state["script"].keys())
+
+
+def test_fallback_script_returns_required_schema():
+    project = FakeProject()
+    script = fallback_script(project)
+    required = {"title", "hook", "roles", "narrative_arc", "cta", "duration", "format"}
+    assert required.issubset(script.keys())
+    assert script["duration"] == project.target_duration
+    assert script["format"] == project.target_format
+    assert isinstance(script["roles"], list)
+
+
+def test_fallback_assets_uses_script_title():
+    project = FakeProject()
+    state = {"script": {"title": "My Script"}}
+    assets = fallback_assets(project, state)
+    assert "needed" in assets
+    assert len(assets["needed"]) == 3
+    assert assets["needed"][0]["query"] == "My Script"
+
+
+def test_fallback_scenes_returns_normalized_scenes():
+    project = FakeProject()
+    state = {}
+    scenes = fallback_scenes(project, state)
+    assert "scenes" in scenes
+    assert len(scenes["scenes"]) == 3
+    for s in scenes["scenes"]:
+        assert "visual_type" in s
+        assert "shot" in s
+        assert "transition" in s
+        assert "lower_third" in s
+        assert "required_assets" in s
+
+
+def test_fallback_effects_derives_from_scenes():
+    project = FakeProject()
+    state = {"scenes": {"scenes": [{"visual": "科技感画面"}]}}
+    effects = fallback_effects(project, state)
+    assert "effects" in effects
+    assert len(effects["effects"]) == 1
+    assert effects["effects"][0]["scene_index"] == 0
+    assert "淡入" in effects["effects"][0]["animation_keywords"]
+    assert "粒子" in effects["effects"][0]["animation_keywords"]
+
+
+def test_assets_step_run_unexpected_error_falls_back(monkeypatch):
+    project = FakeProject()
+    state = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat_completion_stream(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr("app.agent.steps.assets_step.KimiClient", FakeClient)
+    events = [json.loads(e) for e in run_assets(project, state, None)]
+
+    assert any(e["type"] == "error" for e in events)
+    assert events[-1]["type"] == "done"
+    assert "assets" in state
+    assert "needed" in state["assets"]
