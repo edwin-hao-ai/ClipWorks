@@ -110,3 +110,16 @@
 - Task 1: complete (included in baseline f105d0e7180752f288dca2abf17bfebae409781d)
 - Task 2: complete (commit 594675e, review clean)
 - Task 3: complete (commit 4be1dbc, review clean)
+- Task 3: complete (commit 043e394, review clean)
+- Task 4: complete (commit 7c1f42e, review clean)
+- Task 5: complete (commit 14d52af, review approved with notes on I/O tests and cache key)
+- Task 6: complete (commit 9aa44ab, review approved with notes on integration tests)
+- Task 7: complete (commit 7d80408, review clean)
+- Task 8: complete (commits 0f30e6b..d732e36, review clean after fix)
+- Task 9: complete (commit 282b4aa, review clean)
+- Task 10: complete — verification run with environment limitations
+  - backend isolated tests: 15 passed (with KIMI_API_KEY= and --confcutdir=tests/rendering due to no local Postgres)
+  - renderer hyperframes tests: 5 passed
+  - remotion renderer test: timed out (requires real renderer/Chromium; not a code regression)
+  - TypeScript compile in services/renderer/remotion: passed
+  - e2e_hybrid.sh: not run (full local stack not available)
