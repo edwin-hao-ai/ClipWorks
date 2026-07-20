@@ -1,7 +1,13 @@
+from app.agent.steps.assets_step import run as run_assets
+from app.agent.steps.effects_step import run as run_effects
+from app.agent.steps.scenes_step import run as run_scenes
 from app.agent.steps.script_step import run as run_script
 
 STEPS = {
     "script": run_script,
+    "assets": run_assets,
+    "scenes": run_scenes,
+    "effects": run_effects,
 }
 
 ORDER = ["script", "assets", "scenes", "effects"]

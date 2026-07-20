@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Iterator, Optional
 
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def _extract_script_json(text: str) -> Optional[dict]:
     data = parse_json(text)
-    if not data:
+    if not isinstance(data, dict):
         return None
     required = {"title", "hook", "roles", "narrative_arc", "cta", "duration", "format"}
     if not required.issubset(data.keys()):
@@ -51,10 +50,17 @@ def run(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]
             yield sse_token(chunk)
     except LLMUnavailableError as exc:
         logger.warning("Script step LLM unavailable: %s", exc)
-        script = fallback_script(project, state)
+        script = fallback_script(project)
         yield sse_token("AI 暂不可用，已生成可编辑默认脚本。")
         yield sse_done()
         state["script"] = script
+        return
+    except Exception as exc:
+        logger.exception("Script step failed: %s", exc)
+        yield sse_error("脚本生成失败，已使用默认脚本。")
+        script = fallback_script(project)
+        state["script"] = script
+        yield sse_done()
         return
 
     parsed = _extract_script_json(full_text)

@@ -4,10 +4,13 @@ from typing import Optional
 
 
 def extract_json_block(text: str) -> Optional[str]:
-    if "```json" in text:
-        return text.split("```json")[1].split("```")[0].strip()
-    if "```" in text:
-        return text.split("```")[1].split("```")[0].strip()
+    # Prefer an explicit ```json fence so multiple fenced blocks do not confuse us.
+    match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
     return text.strip()
 
 
