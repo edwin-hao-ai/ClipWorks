@@ -1,7 +1,10 @@
 """Router tests for the Agent Loop Wizard.
 
-These tests use self-contained fixtures so they can exercise wizard state
-step transitions without relying on the full planning chat flow.
+These tests use self-contained fixtures because backend/tests/conftest.py
+only provides the table-cleanup fixture; it does not expose client,
+auth_headers, test_user, or test_project fixtures. Using local fixtures
+keeps the wizard router tests isolated from the planning/chat flow tests
+and avoids coupling to the broader agent test suite.
 """
 import json
 from unittest.mock import patch
@@ -53,6 +56,14 @@ def project(auth_client):
 def test_get_state_requires_auth(client):
     response = client.get("/projects/any/agent/state")
     assert response.status_code == 401
+
+
+def test_state_lifecycle(auth_client, project):
+    """GET initial state returns idle wizard state."""
+    r = auth_client.get(f"/projects/{project['id']}/agent/state")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["step"] == "idle"
 
 
 def test_get_state_returns_fresh_state(auth_client, project):
@@ -114,10 +125,38 @@ def test_step_invalid_name(auth_client, project):
     assert "Invalid step name" in r.json()["detail"]
 
 
+def test_skip_step_returns_400(auth_client, project):
+    """Running scenes before script/assets must be rejected."""
+    r = auth_client.post(f"/projects/{project['id']}/agent/step/scenes", json={})
+    assert r.status_code == 400
+
+
 def test_step_out_of_order(auth_client, project):
     r = auth_client.post(f"/projects/{project['id']}/agent/step/scenes", json={})
     assert r.status_code == 400
     assert "Please complete assets" in r.json()["detail"]
+
+
+def test_concurrent_step_returns_409(auth_client, project, monkeypatch):
+    """A second step request while one is generating must return 409."""
+    pid = project["id"]
+
+    def slow_step(*args, **kwargs):
+        yield json.dumps({"type": "token", "text": "working"})
+
+    monkeypatch.setattr("app.routers.agent.run_step", slow_step)
+
+    # start a step but do not consume the stream
+    r = auth_client.post(f"/projects/{pid}/agent/step/script", json={})
+    assert r.status_code == 200
+
+    # second step while first is in progress
+    r2 = auth_client.post(f"/projects/{pid}/agent/step/assets", json={})
+    assert r2.status_code == 409
+    assert "Already generating" in r2.json()["detail"]
+
+    # consume first stream to release lock
+    list(r.iter_lines())
 
 
 def test_step_concurrent_generation(auth_client, project, monkeypatch):
