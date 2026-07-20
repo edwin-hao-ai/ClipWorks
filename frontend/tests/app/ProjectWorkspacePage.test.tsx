@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProjectWorkspacePage from '@/app/projects/[id]/page';
-import { api } from '@/lib/api';
+import { api, streamJsonLines } from '@/lib/api';
 
 let mockSearchParams = new URLSearchParams();
 
@@ -183,5 +184,247 @@ describe.sequential('ProjectWorkspacePage', () => {
     render(<ProjectWorkspacePage />);
     expect(await screen.findByText('项目属性', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText('场景卡片')).toBeInTheDocument();
+  });
+
+  it('saves wizard state changes and updates local state', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id') {
+        return Promise.resolve(
+          makeProject({
+            title: 'Draft Project',
+            status: 'planning',
+            agent_state: {
+              step: 'script',
+              script: {
+                title: 'Old Title',
+                hook: '',
+                roles: [],
+                narrative_arc: '',
+                cta: '',
+                duration: 30,
+                format: '16:9',
+              },
+            },
+          })
+        );
+      }
+      if (url === '/projects/test-id/assets/') return Promise.resolve([]);
+      if (url === '/projects/test-id/renders/') return Promise.resolve([]);
+      return Promise.resolve({});
+    });
+    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+    render(<ProjectWorkspacePage />);
+    const input = await screen.findByDisplayValue('Old Title', undefined, { timeout: 3000 });
+    fireEvent.change(input, { target: { value: 'New Title' } });
+
+    expect(await screen.findByDisplayValue('New Title')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/projects/test-id/agent/state',
+        expect.objectContaining({
+          state: expect.objectContaining({
+            script: expect.objectContaining({ title: 'New Title' }),
+          }),
+        })
+      )
+    );
+  });
+
+  it('reverts local state and shows error banner when state save fails', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id') {
+        return Promise.resolve(
+          makeProject({
+            title: 'Draft Project',
+            status: 'planning',
+            agent_state: {
+              step: 'script',
+              script: {
+                title: 'Original Title',
+                hook: '',
+                roles: [],
+                narrative_arc: '',
+                cta: '',
+                duration: 30,
+                format: '16:9',
+              },
+            },
+          })
+        );
+      }
+      if (url === '/projects/test-id/assets/') return Promise.resolve([]);
+      if (url === '/projects/test-id/renders/') return Promise.resolve([]);
+      return Promise.resolve({});
+    });
+    (api.post as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id/agent/state') {
+        return Promise.reject(new Error('save failed'));
+      }
+      return Promise.resolve({});
+    });
+
+    render(<ProjectWorkspacePage />);
+    const input = await screen.findByDisplayValue('Original Title', undefined, { timeout: 3000 });
+    fireEvent.change(input, { target: { value: 'Changed Title' } });
+
+    expect(await screen.findByTestId('action-error-banner')).toHaveTextContent('save failed');
+    expect(screen.getByDisplayValue('Original Title')).toBeInTheDocument();
+  });
+
+  it('runs a wizard step, streams chunks, and refreshes state after stream', async () => {
+    const user = userEvent.setup();
+    const updatedState = {
+      step: 'scenes',
+      script: {
+        title: 'Draft Project',
+        hook: '',
+        roles: [],
+        narrative_arc: '',
+        cta: '',
+        duration: 30,
+        format: '16:9',
+      },
+      scenes: { scenes: [] },
+    };
+
+    (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id') {
+        return Promise.resolve(
+          makeProject({
+            title: 'Draft Project',
+            status: 'planning',
+            agent_state: {
+              step: 'script',
+              script: updatedState.script,
+            },
+          })
+        );
+      }
+      if (url === '/projects/test-id/assets/') return Promise.resolve([]);
+      if (url === '/projects/test-id/renders/') return Promise.resolve([]);
+      if (url === '/projects/test-id/agent/state') return Promise.resolve(updatedState);
+      return Promise.resolve({});
+    });
+    (streamJsonLines as ReturnType<typeof vi.fn>).mockImplementation(async function* () {
+      yield { type: 'progress' };
+      yield { type: 'token', text: 'ok' };
+    });
+
+    render(<ProjectWorkspacePage />);
+    const runButton = await screen.findByRole('button', { name: '重新生成当前步骤' }, { timeout: 3000 });
+    await user.click(runButton);
+
+    await waitFor(() =>
+      expect(streamJsonLines).toHaveBeenCalledWith(
+        '/projects/test-id/agent/step/script',
+        expect.objectContaining({ user_input: '' })
+      )
+    );
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/projects/test-id/agent/state'));
+  });
+
+  it('approves the plan and transitions to generating', async () => {
+    const user = userEvent.setup();
+    (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id') {
+        return Promise.resolve(
+          makeProject({
+            title: 'Draft Project',
+            status: 'planning',
+            agent_state: {
+              step: 'effects',
+              script: {
+                title: 'Draft Project',
+                hook: '',
+                roles: [],
+                narrative_arc: '',
+                cta: '',
+                duration: 30,
+                format: '16:9',
+              },
+              assets: { needed: [] },
+              scenes: {
+                scenes: [
+                  { start: 0, duration: 5, description: '', visual: '', text: '开场', visual_type: 'text', shot: '', transition: 'fade', lower_third: '', required_assets: [] },
+                ],
+              },
+              effects: {
+                effects: [
+                  { scene_index: 0, visual_style: '极简高级', animation_keywords: [], generate_image: false, generate_image_prompt: '' },
+                ],
+              },
+            },
+          })
+        );
+      }
+      if (url === '/projects/test-id/assets/') return Promise.resolve([]);
+      if (url === '/projects/test-id/renders/') return Promise.resolve([]);
+      return Promise.resolve({});
+    });
+    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+    render(<ProjectWorkspacePage />);
+    await user.click(await screen.findByRole('button', { name: '4 动效' }, { timeout: 3000 }));
+    const approveButton = await screen.findByRole('button', { name: '确认生成' }, { timeout: 3000 });
+    await user.click(approveButton);
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/projects/test-id/agent/approve', {})
+    );
+    expect(await screen.findByText(/《Draft Project》/)).toBeInTheDocument();
+  });
+
+  it('sets creditBlocked when approve returns 402', async () => {
+    const user = userEvent.setup();
+    (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id') {
+        return Promise.resolve(
+          makeProject({
+            title: 'Draft Project',
+            status: 'planning',
+            agent_state: {
+              step: 'effects',
+              script: {
+                title: 'Draft Project',
+                hook: '',
+                roles: [],
+                narrative_arc: '',
+                cta: '',
+                duration: 30,
+                format: '16:9',
+              },
+              assets: { needed: [] },
+              scenes: {
+                scenes: [
+                  { start: 0, duration: 5, description: '', visual: '', text: '开场', visual_type: 'text', shot: '', transition: 'fade', lower_third: '', required_assets: [] },
+                ],
+              },
+              effects: {
+                effects: [
+                  { scene_index: 0, visual_style: '极简高级', animation_keywords: [], generate_image: false, generate_image_prompt: '' },
+                ],
+              },
+            },
+          })
+        );
+      }
+      if (url === '/projects/test-id/assets/') return Promise.resolve([]);
+      if (url === '/projects/test-id/renders/') return Promise.resolve([]);
+      return Promise.resolve({});
+    });
+    (api.post as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id/agent/approve') {
+        return Promise.reject(new Error('API error 402: credits depleted'));
+      }
+      return Promise.resolve({});
+    });
+
+    render(<ProjectWorkspacePage />);
+    await user.click(await screen.findByRole('button', { name: '4 动效' }, { timeout: 3000 }));
+    const approveButton = await screen.findByRole('button', { name: '确认生成' }, { timeout: 3000 });
+    await user.click(approveButton);
+
+    expect(await screen.findByTestId('credits-depleted-banner')).toBeInTheDocument();
   });
 });

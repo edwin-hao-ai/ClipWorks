@@ -233,10 +233,13 @@ export default function ProjectWorkspacePage() {
 
   const handleWizardStateChange = async (nextState: NonNullable<Project['agent_state']>) => {
     if (!project) return;
+    const previousState = project.agent_state;
     setProject((prev) => (prev ? { ...prev, agent_state: nextState } : null));
     try {
       await api.post(`/projects/${project.id}/agent/state`, { state: nextState });
     } catch (err) {
+      // 后端保存失败时回滚本地状态，避免用户看到“已保存”的假象。
+      setProject((prev) => (prev ? { ...prev, agent_state: previousState } : null));
       setError(err instanceof Error ? err.message : '保存状态失败');
     }
   };
@@ -247,7 +250,7 @@ export default function ProjectWorkspacePage() {
     setError(null);
     try {
       for await (const chunk of streamJsonLines(
-        `${API_URL}/projects/${project.id}/agent/step/${stepName}`,
+        `/projects/${project.id}/agent/step/${stepName}`,
         { user_input: userInput || '' }
       )) {
         if (chunk.type === 'error') {

@@ -101,10 +101,10 @@ async function* streamGet(path: string) {
 }
 
 export async function* streamJsonLines(
-  url: string,
+  path: string,
   body: unknown
 ): AsyncGenerator<{ type: string; [key: string]: unknown }> {
-  const res = await fetch(url, {
+  const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -118,23 +118,27 @@ export async function* streamJsonLines(
   if (!reader) throw new Error('No response body');
   const decoder = new TextDecoder();
   let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const payload = trimmed.slice(5).trim();
-      if (payload === '[DONE]') return;
-      try {
-        yield JSON.parse(payload);
-      } catch {
-        // ignore malformed lines
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (payload === '[DONE]') return;
+        try {
+          yield JSON.parse(payload);
+        } catch {
+          // ignore malformed lines
+        }
       }
     }
+  } finally {
+    reader.releaseLock();
   }
 }
 
