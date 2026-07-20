@@ -2,22 +2,25 @@ from app.rendering.engine_selector import select_engine
 from app.rendering.provider import RenderRequest
 
 
-def test_selects_video_use_for_raw_assets():
+def test_video_use_still_priority_with_raw_assets():
     req = RenderRequest(composition={}, assets={}, raw_assets=["/tmp/a.mp4"])
     assert select_engine(req) == "video-use"
 
 
-def test_selects_remotion_for_template_prompt():
-    req = RenderRequest(composition={}, assets={}, user_prompt="用 Remotion 模板批量生成")
+def test_selects_remotion_when_hinted():
+    # engine_hint 尊重 Agent 推荐的引擎。
+    req = RenderRequest(composition={}, assets={}, engine_hint="remotion")
     assert select_engine(req) == "remotion"
 
 
-def test_defaults_to_remotion():
-    # Remotion 是默认引擎：真素材/动效/H.264 天花板更高；失败由 RenderService 降级。
+def test_default_returns_hybrid():
+    # 默认营销视频请求走 hybrid：HF 负责单 scene 视觉动效，Remotion 负责总装/转场/音轨。
     req = RenderRequest(composition={}, assets={})
-    assert select_engine(req) == "remotion"
+    assert select_engine(req) == "hybrid"
 
 
-def test_selects_hyperframes_when_explicitly_requested():
-    req = RenderRequest(composition={}, assets={}, user_prompt="用 hyperframes 轻量 html 出片")
+def test_hyperframes_keyword_respected():
+    req = RenderRequest(
+        composition={}, assets={}, user_prompt="use hyperframes light html"
+    )
     assert select_engine(req) == "hyperframes"

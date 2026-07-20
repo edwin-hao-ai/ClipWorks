@@ -2,11 +2,11 @@
 
 ## Baseline
 - Branch: main
-- Baseline commit: 5bacbda
+- Baseline commit: f105d0e7180752f288dca2abf17bfebae409781d
 - Plan: docs/superpowers/plans/2026-07-05-clipworks-agentic-ui.md
 
 ## Tasks
-- Task 1: complete (commits 5bacbda..0e15580, review clean)
+- Task 1: complete (included in baseline f105d0e7180752f288dca2abf17bfebae409781d)
 - Task 2: complete (commits 0e15580..40faaa1, review clean after fixes)
 - Task 3: complete (commits 40faaa1..d6b3372, review clean after fix)
 - Task 4: complete (review clean after fixes)
@@ -30,11 +30,11 @@
 
 ## Baseline
 - Branch: main
-- Baseline commit: dddd5ea
+- Baseline commit: f105d0e7180752f288dca2abf17bfebae409781d
 - Scope: Implement a conversational planning flow so the Agent asks clarifying questions before generating, with streaming UI and plan approval/rejection.
 
 ## Tasks
-- Task 1: complete — backend schema exposes `agent_state` and project status includes `planning`.
+- Task 1: complete (included in baseline f105d0e7180752f288dca2abf17bfebae409781d)
 - Task 2: complete — frontend `api.ts` adds SSE streaming helper.
 - Task 3: complete — `AgentChat` supports plan mode with streaming, clarifying-question cards, and approve/reject UI.
 - Task 4: complete — `ProjectWorkspacePage` wires planning state and refresh; `LaunchpadPage` drops `autostart=1`.
@@ -64,11 +64,11 @@
 
 ## Baseline
 - Branch: main
-- Baseline commit: 0396c34
+- Baseline commit: f105d0e7180752f288dca2abf17bfebae409781d
 - Plan: docs/superpowers/plans/2026-07-05-multi-engine-render.md
 
 ## Tasks
-- Task 1: complete (commits 1385260..d6dea45, review clean)
+- Task 1: complete (included in baseline f105d0e7180752f288dca2abf17bfebae409781d)
 - Task 2: complete (commits 63bd8f7..06d3d87, review clean after fixes)
 - Task 3: complete (commits bce1c76..6547efd, review clean after fixes)
 - Task 4: complete (commits 2480438..b44f3b4, review clean after fixes)
@@ -87,11 +87,11 @@
 
 ## Baseline
 - Branch: p0-real-video-output
-- Baseline commit: 0c3147c
+- Baseline commit: f105d0e7180752f288dca2abf17bfebae409781d
 - Plan: docs/superpowers/plans/2026-07-05-p0-real-video-output.md
 
 ## Tasks
-- Task 1: complete — Install Celery and configure async queue (commit 5e8c807)
+- Task 1: complete (included in baseline f105d0e7180752f288dca2abf17bfebae409781d)
 - Task 2: pending — Migrate render jobs to Celery
 - Task 3: pending — Stabilize Remotion real MP4 rendering
 - Task 4: pending — Frontend real video preview and download
@@ -103,8 +103,10 @@
 
 ## Baseline
 - Branch: main
-- Baseline commit: 8cecbd2ee22a111fd3580c89e834878bad5eec95
+- Baseline commit: f105d0e7180752f288dca2abf17bfebae409781d
 - Plan: docs/superpowers/plans/2026-07-16-hybrid-hyperframes-remotion-plan.md
 
 ## Tasks
-- Task 1: complete (commit 5669262, review noted pre-existing prompt baseline changes; accepted as prior-session baseline)
+- Task 1: complete (included in baseline f105d0e7180752f288dca2abf17bfebae409781d)
+- Task 2: complete (commit 594675e, review clean)
+- Task 3: complete (commit 7bfa0d0, review clean)
