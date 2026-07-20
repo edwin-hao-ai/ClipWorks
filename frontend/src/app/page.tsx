@@ -1,20 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { clsx } from 'clsx';
 import { LaunchNav } from '@/components/layout/LaunchNav';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
-
-const QUICK_PROMPTS = [
-  '小红书口播精剪',
-  'SaaS 产品发布',
-  '教程视频',
-  '短视频广告',
-  '生日祝福视频',
-];
+import { Project } from '@/lib/types';
+import { useAuthStore } from '@/stores/authStore';
+import {
+  QUICK_PROMPTS,
+  extractDuration,
+  extractFormat,
+  extractUrl,
+  makeProjectTitle,
+} from '@/lib/projectIntent';
 
 export default function HomePage() {
   const router = useRouter();
@@ -24,15 +24,29 @@ export default function HomePage() {
 
   const createProject = async (input: string) => {
     if (!input.trim() || loading) return;
+    // 未登录时 /auth/me 会 401（reject），此时直接跳转登录页，避免触发 /projects/ 的 401 错误横幅。
+    try {
+      const me = await api.get('/auth/me');
+      if (me?.user) {
+        useAuthStore.setState({ user: me.user });
+      }
+    } catch {
+      router.push('/login');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
+      const sourceUrl = extractUrl(input);
       const project = await api.post('/projects/', {
-        title: input.slice(0, 40) || '未命名项目',
-        source_url: '',
+        title: makeProjectTitle(input),
+        source_url: sourceUrl || '',
         source_type: 'url',
+        target_format: extractFormat(input),
+        target_duration: extractDuration(input),
       });
-      router.push(`/projects/${project.id}`);
+      const query = `?initialPrompt=${encodeURIComponent(input)}`;
+      router.push(`/projects/${project.id}${query}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建项目失败');
       setLoading(false);
@@ -45,9 +59,9 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background-base flex flex-col relative overflow-hidden">
+    <div className="min-h-dvh bg-background-base flex flex-col relative overflow-hidden">
       <LaunchNav />
-      <main className="flex-1 flex flex-col items-center justify-center px-6 relative">
+      <main id="cw-main" className="flex-1 flex flex-col items-center justify-center px-6 relative">
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
           <div className="absolute -top-1/2 -left-1/4 w-[700px] h-[700px] rounded-full bg-brand-900/25 blur-[140px]" />
           <div className="absolute -bottom-1/4 -right-1/4 w-[600px] h-[600px] rounded-full bg-purple-900/15 blur-[120px]" />
@@ -67,15 +81,15 @@ export default function HomePage() {
                 type="text"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="例如：帮我做一个 30 秒的产品介绍视频，风格活泼，面向年轻人…"
-                className="flex-1 bg-transparent px-4 py-3 text-base outline-none placeholder-content-tertiary text-left"
+                placeholder="例如：帮我做一个 30 秒的产品介绍视频，9:16，风格活泼，面向年轻人…"
+                className="flex-1 min-w-0 bg-transparent px-4 py-3 text-base outline-none placeholder-content-tertiary text-left"
                 disabled={loading}
               />
               <Button
                 type="submit"
                 disabled={loading || !prompt.trim()}
                 size="lg"
-                className="shrink-0"
+                className="shrink-0 px-3 sm:px-5"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -105,7 +119,7 @@ export default function HomePage() {
                 key={p}
                 onClick={() => createProject(p)}
                 disabled={loading}
-                className="px-3 py-1.5 rounded-full bg-background-elevated border border-border-subtle text-sm text-content-secondary hover:border-brand-500/50 hover:text-brand-400 transition-colors disabled:opacity-50"
+                className="focus-ring px-3 py-1.5 rounded-full bg-background-elevated border border-border-subtle text-sm text-content-secondary hover:border-brand-500/50 hover:text-brand-400 transition-colors disabled:opacity-50"
               >
                 {p}
               </button>
@@ -120,27 +134,103 @@ export default function HomePage() {
 }
 
 function RecentProjects() {
-  const projects = [
-    { id: '1', title: '产品发布视频', time: '2 小时前', status: '已完成', gradient: 'from-blue-600/40 to-purple-600/40' },
-    { id: '2', title: '小红书口播', time: '昨天', status: '草稿', gradient: 'from-pink-600/40 to-orange-600/40' },
-    { id: '3', title: '功能更新说明', time: '3 天前', status: '已完成', gradient: 'from-emerald-600/40 to-teal-600/40' },
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/projects/')
+      .then((data) => {
+        if (!cancelled && Array.isArray(data)) {
+          setProjects(data.slice(0, 3));
+        }
+      })
+      .catch(() => {
+        // Silently hide recent projects on error to avoid showing fake data.
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="text-left">
+        <div className="text-sm text-content-secondary mb-3 px-1">最近项目</div>
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="min-w-[200px] bg-background-surface border border-border-subtle rounded-lg p-3 animate-pulse"
+            >
+              <div className="aspect-video rounded-md bg-background-elevated mb-2" />
+              <div className="h-4 bg-background-elevated rounded w-3/4 mb-2" />
+              <div className="h-3 bg-background-elevated rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (projects.length === 0) return null;
+
+  const formatTime = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+    return `${Math.floor(diff / 86400)} 天前`;
+  };
+
+  const statusLabel: Record<string, string> = {
+    draft: '草稿',
+    planning: '规划中',
+    generating: '生成中',
+    ready: '已完成',
+    failed: '失败',
+  };
+
+  const statusColor: Record<string, string> = {
+    draft: 'text-content-tertiary',
+    planning: 'text-brand-400',
+    generating: 'text-warning',
+    ready: 'text-success',
+    failed: 'text-error',
+  };
+
+  const gradients = [
+    'from-blue-600/40 to-purple-600/40',
+    'from-pink-600/40 to-orange-600/40',
+    'from-emerald-600/40 to-teal-600/40',
   ];
 
   return (
     <div className="text-left">
       <div className="text-sm text-content-secondary mb-3 px-1">最近项目</div>
       <div className="flex gap-3 overflow-x-auto pb-2">
-        {projects.map((p) => (
+        {projects.map((p, idx) => (
           <a
             key={p.id}
             href={`/projects/${p.id}`}
             className="min-w-[200px] bg-background-surface border border-border-subtle rounded-lg p-3 hover:border-border-default transition-colors"
           >
-            <div className={clsx('aspect-video rounded-md bg-gradient-to-br mb-2', p.gradient)} />
+            <div
+              className={`aspect-video rounded-md bg-gradient-to-br mb-2 ${gradients[idx % gradients.length]}`}
+            />
             <div className="text-sm font-medium text-content-primary truncate">{p.title}</div>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-xs text-content-tertiary">{p.time}</span>
-              <span className="text-xs text-success">{p.status}</span>
+              <span className="text-xs text-content-tertiary">{formatTime(p.updated_at)}</span>
+              <span className={`text-xs ${statusColor[p.status] || 'text-content-tertiary'}`}>
+                {statusLabel[p.status] || p.status}
+              </span>
             </div>
           </a>
         ))}

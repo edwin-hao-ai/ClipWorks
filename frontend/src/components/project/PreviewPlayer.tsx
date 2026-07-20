@@ -8,6 +8,9 @@ interface PreviewPlayerProps {
   outputUrl?: string | null;
   htmlOutputUrl?: string | null;
   format?: '16:9' | '9:16' | '1:1';
+  isPlaceholder?: boolean;
+  currentTime?: number;
+  onTimeUpdate?: (t: number) => void;
 }
 
 const FORMAT_RATIO: Record<string, string> = {
@@ -21,6 +24,9 @@ export function PreviewPlayer({
   outputUrl,
   htmlOutputUrl,
   format = '16:9',
+  isPlaceholder = false,
+  currentTime,
+  onTimeUpdate,
 }: PreviewPlayerProps) {
   const effectiveOutputUrl = outputUrl ?? videoUrl ?? null;
   const effectiveHtmlOutputUrl = htmlOutputUrl ?? null;
@@ -33,7 +39,13 @@ export function PreviewPlayer({
           FORMAT_RATIO[format] || 'aspect-video'
         )}
       >
-        <VideoPreview outputUrl={effectiveOutputUrl} htmlOutputUrl={effectiveHtmlOutputUrl} />
+        <VideoPreview
+          outputUrl={effectiveOutputUrl}
+          htmlOutputUrl={effectiveHtmlOutputUrl}
+          isPlaceholder={isPlaceholder}
+          currentTime={currentTime}
+          onTimeUpdate={onTimeUpdate}
+        />
       </div>
     </div>
   );

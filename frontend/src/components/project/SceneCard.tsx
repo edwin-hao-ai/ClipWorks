@@ -26,7 +26,7 @@ export function SceneCard({ scene, isSelected = false, onClick }: SceneCardProps
       onClick={() => onClick?.(scene.id)}
       aria-label={`选择场景：${scene.name}`}
       className={clsx(
-        'group flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all duration-200 text-left',
+        'group flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all duration-200 text-left w-full min-w-0',
         isSelected
           ? 'bg-brand-900/20 border-brand-500/60 shadow-[0_0_16px_rgba(14,165,233,0.15)]'
           : 'bg-background-elevated border-border-subtle hover:border-border-default hover:-translate-y-0.5'

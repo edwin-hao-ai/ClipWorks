@@ -88,6 +88,24 @@
   }
 }
 
+@layer components {
+  /* 键盘焦点环：统一加到非 Button 的交互元素（链接、图标按钮、chip），
+     鼠标点击不触发（:focus-visible），键盘 Tab 时清晰可见。 */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/60 rounded-md;
+  }
+
+  /* 导航选中态：深/浅主题用不同文字色保证对比度（浅主题下 brand-400 太浅）。 */
+  .nav-active {
+    background-color: rgba(2, 132, 199, 0.15);
+    color: var(--brand-400);
+  }
+  [data-theme="light"] .nav-active {
+    background-color: rgba(2, 132, 199, 0.12);
+    color: var(--brand-700);
+  }
+}
+
 /* Scrollbar polish for dark UI */
 ::-webkit-scrollbar {
   width: 8px;
@@ -105,4 +123,21 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
+}
+
+
+/* 浅色主题：通过 <html data-theme="light"> 切换。仅覆盖中性色 token，
+   品牌色/语义色/时间线色沿用 :root，保证对比度与一致性。 */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #f8fafc;
 }

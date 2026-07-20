@@ -6,15 +6,42 @@ export interface User {
   provider?: string;
 }
 
+export interface AgentState {
+  step: 'idle' | 'chatting' | 'pending_approval' | 'generating';
+  messages?: { role: 'user' | 'assistant'; content: string }[];
+  pending_plan?: AgentPlan | null;
+}
+
+export interface AgentPlan {
+  final_plan?: boolean;
+  title: string;
+  hook: string;
+  format: '16:9' | '9:16' | '1:1';
+  duration: number;
+  scenes: AgentScene[];
+  assets_needed: string[];
+  engine_hint: 'hyperframes' | 'remotion' | 'video-use';
+}
+
+export interface AgentScene {
+  start: number;
+  duration: number;
+  description: string;
+  visual: string;
+  text: string;
+}
+
 export interface Project {
   id: string;
   title: string;
   source_url?: string;
   source_type: 'url' | 'upload';
-  status: 'draft' | 'generating' | 'ready' | 'failed';
+  status: 'draft' | 'planning' | 'generating' | 'ready' | 'failed';
   target_format: string;
   target_duration?: number;
+  agent_state?: AgentState;
   latest_output_url?: string;
+  cover_url?: string | null;
   composition?: Composition;
   created_at: string;
   updated_at: string;
@@ -52,20 +79,26 @@ export interface RenderJob {
   id: string;
   status: string;
   progress: number;
+  logs?: { time: string; message: string }[];
   output_url?: string;
   html_output_url?: string;
   error_message?: string;
+  stalled_reason?: string;
+  queue_position?: number;
+  is_placeholder?: boolean;
+  created_at?: string;
 }
 
 export interface MediaAsset {
   id: string;
   project_id: string;
   type: 'image' | 'video' | 'audio' | 'font' | 'generated';
-  source: 'upload' | 'pexels' | 'generated' | 'user_url';
+  source: 'upload' | 'pexels' | 'stock' | 'generated' | 'user_url';
   original_url?: string;
   local_path?: string;
   thumbnail_url?: string;
-  metadata?: Record<string, unknown>;
+  // 后端 ORM 属性名为 metadata_（DB 列名 metadata），原样序列化输出。
+  metadata_?: Record<string, unknown>;
   created_at: string;
 }
 

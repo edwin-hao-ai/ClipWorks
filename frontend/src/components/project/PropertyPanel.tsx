@@ -1,19 +1,44 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Project, Scene } from '@/lib/types';
+import { Project, Scene, MediaAsset } from '@/lib/types';
 import { clsx } from 'clsx';
-import { Type, Clock, Monitor, Image as ImageIcon, Music } from 'lucide-react';
+import { Type, Clock, Monitor, Image as ImageIcon, Music, Video, File, Check, Upload, Link2 } from 'lucide-react';
 
 interface PropertyPanelProps {
   project: Project;
   selectedScene?: Scene;
+  assets?: MediaAsset[];
   onChange?: (changes: Partial<Project> | Partial<Scene>) => void;
+  onSceneApply?: (scene: Partial<Scene>) => void;
+  onProjectSave?: (changes: Partial<Project>) => void;
+  onUpload?: () => void;
+  applying?: boolean;
+  saving?: boolean;
 }
 
-export function PropertyPanel({ project, selectedScene, onChange }: PropertyPanelProps) {
+const ASSET_ICON: Record<MediaAsset['type'], typeof ImageIcon> = {
+  image: ImageIcon,
+  video: Video,
+  audio: Music,
+  font: File,
+  generated: ImageIcon,
+};
+
+export function PropertyPanel({
+  project,
+  selectedScene,
+  assets = [],
+  onChange,
+  onSceneApply,
+  onProjectSave,
+  onUpload,
+  applying,
+  saving,
+}: PropertyPanelProps) {
   const [projectForm, setProjectForm] = useState({
     title: project.title,
+    source_url: project.source_url ?? '',
     target_format: project.target_format,
     target_duration: project.target_duration ?? 30,
   });
@@ -27,6 +52,7 @@ export function PropertyPanel({ project, selectedScene, onChange }: PropertyPane
   useEffect(() => {
     setProjectForm({
       title: project.title,
+      source_url: project.source_url ?? '',
       target_format: project.target_format,
       target_duration: project.target_duration ?? 30,
     });
@@ -41,20 +67,33 @@ export function PropertyPanel({ project, selectedScene, onChange }: PropertyPane
   }, [selectedScene]);
 
   const handleProjectChange = (field: keyof typeof projectForm, value: string | number) => {
-    const next = { ...projectForm, [field]: value };
-    setProjectForm(next);
-    onChange?.(next);
+    setProjectForm((prev) => ({ ...prev, [field]: value }));
+    // 只上报变化的字段：整表上传会让父组件误以为画幅每次都变，逐键触发真实渲染。
+    onChange?.({ [field]: value } as Partial<Project>);
   };
 
   const handleSceneChange = (field: keyof typeof sceneForm, value: string | number) => {
-    const next = { ...sceneForm, [field]: value };
-    setSceneForm(next);
-    onChange?.(next);
+    setSceneForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  return (
-    <div className="bg-background-surface border border-border-subtle rounded-lg p-4 h-full overflow-y-auto">
-      {selectedScene ? (
+  const handleSaveProject = () => {
+    const changes: Partial<Project> = {};
+    if (projectForm.title !== project.title) changes.title = projectForm.title;
+    if (projectForm.source_url !== (project.source_url ?? '')) changes.source_url = projectForm.source_url;
+    if (projectForm.target_duration !== (project.target_duration ?? 30)) changes.target_duration = projectForm.target_duration;
+    if (Object.keys(changes).length > 0) {
+      onProjectSave?.(changes);
+    }
+  };
+
+  const hasProjectChanges =
+    projectForm.title !== project.title ||
+    projectForm.source_url !== (project.source_url ?? '') ||
+    projectForm.target_duration !== (project.target_duration ?? 30);
+
+  if (selectedScene) {
+    return (
+      <div className="bg-background-surface border border-border-subtle rounded-lg p-4 h-full overflow-y-auto">
         <div className="space-y-5">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Type className="w-4 h-4 text-brand-400" />
@@ -87,73 +126,143 @@ export function PropertyPanel({ project, selectedScene, onChange }: PropertyPane
               className="w-full bg-background-elevated border border-border-subtle rounded-md px-2 py-1.5 text-sm outline-none focus:border-brand-500"
             />
           </div>
+          <button
+            type="button"
+            disabled={applying}
+            onClick={() => onSceneApply?.(sceneForm)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-brand-600 text-content-inverse text-sm font-medium hover:bg-brand-500 disabled:opacity-50 transition-colors"
+          >
+            {applying ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {applying ? '应用中…' : '应用修改'}
+          </button>
         </div>
-      ) : (
-        <div className="space-y-5">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Monitor className="w-4 h-4 text-brand-400" />
-            项目属性
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-background-surface border border-border-subtle rounded-lg p-4 h-full overflow-y-auto">
+      <div className="space-y-5">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Monitor className="w-4 h-4 text-brand-400" />
+          项目属性
+        </div>
+        <div>
+          <label className="text-xs text-content-secondary block mb-1">标题</label>
+          <input
+            type="text"
+            value={projectForm.title}
+            onChange={(e) => handleProjectChange('title', e.target.value)}
+            className="w-full bg-background-elevated border border-border-subtle rounded-md px-2 py-1.5 text-sm outline-none focus:border-brand-500"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-content-secondary block mb-1 flex items-center gap-1">
+            <Link2 className="w-3 h-3" /> 素材来源 URL
+          </label>
+          <input
+            type="text"
+            value={projectForm.source_url}
+            onChange={(e) => handleProjectChange('source_url', e.target.value)}
+            placeholder="粘贴网页链接，AI 会自动抓取图片/文案"
+            className="w-full bg-background-elevated border border-border-subtle rounded-md px-2 py-1.5 text-sm outline-none focus:border-brand-500 placeholder-content-tertiary"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-content-secondary block mb-1">画幅</label>
+          <div className="flex gap-2">
+            {['16:9', '9:16', '1:1'].map((ratio) => (
+              <button
+                key={ratio}
+                type="button"
+                onClick={() => handleProjectChange('target_format', ratio)}
+                className={clsx(
+                  'flex-1 py-1.5 rounded-md text-xs border transition-colors',
+                  projectForm.target_format === ratio
+                    ? 'bg-brand-600 text-content-inverse border-brand-600'
+                    : 'bg-background-elevated text-content-secondary border-border-subtle hover:border-border-default'
+                )}
+              >
+                {ratio}
+              </button>
+            ))}
           </div>
-          <div>
-            <label className="text-xs text-content-secondary block mb-1">标题</label>
+        </div>
+        <div>
+          <label className="text-xs text-content-secondary block mb-1">目标时长</label>
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-content-tertiary" />
             <input
-              type="text"
-              value={projectForm.title}
-              onChange={(e) => handleProjectChange('title', e.target.value)}
-              className="w-full bg-background-elevated border border-border-subtle rounded-md px-2 py-1.5 text-sm outline-none focus:border-brand-500"
+              type="number"
+              value={projectForm.target_duration}
+              onChange={(e) => handleProjectChange('target_duration', Number(e.target.value))}
+              className="flex-1 bg-background-elevated border border-border-subtle rounded-md px-2 py-1.5 text-sm outline-none focus:border-brand-500"
             />
+            <span className="text-xs text-content-secondary">秒</span>
           </div>
-          <div>
-            <label className="text-xs text-content-secondary block mb-1">画幅</label>
-            <div className="flex gap-2">
-              {['16:9', '9:16', '1:1'].map((ratio) => (
-                <button
-                  key={ratio}
-                  type="button"
-                  onClick={() => handleProjectChange('target_format', ratio)}
-                  className={clsx(
-                    'flex-1 py-1.5 rounded-md text-xs border transition-colors',
-                    projectForm.target_format === ratio
-                      ? 'bg-brand-900/50 text-brand-400 border-brand-900/60'
-                      : 'bg-background-elevated text-content-secondary border-border-subtle hover:border-border-default'
-                  )}
-                >
-                  {ratio}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-content-secondary block mb-1">目标时长</label>
+        </div>
+
+        {hasProjectChanges && (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSaveProject}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-brand-600 text-content-inverse text-sm font-medium hover:bg-brand-500 disabled:opacity-50 transition-colors"
+          >
+            {saving ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {saving ? '保存中…' : '保存项目属性'}
+          </button>
+        )}
+
+        <div className="border-t border-border-subtle pt-4">
+          <div className="flex items-center justify-between text-sm font-semibold mb-3">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-content-tertiary" />
-              <input
-                type="number"
-                value={projectForm.target_duration}
-                onChange={(e) => handleProjectChange('target_duration', Number(e.target.value))}
-                className="flex-1 bg-background-elevated border border-border-subtle rounded-md px-2 py-1.5 text-sm outline-none focus:border-brand-500"
-              />
-              <span className="text-xs text-content-secondary">秒</span>
-            </div>
-          </div>
-          <div className="border-t border-border-subtle pt-4">
-            <div className="flex items-center gap-2 text-sm font-semibold mb-3">
               <ImageIcon className="w-4 h-4 text-brand-400" />
               素材
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-2 bg-background-elevated rounded-md border border-border-subtle">
-                <div className="w-8 h-8 rounded bg-blue-600/30 flex items-center justify-center text-xs">图</div>
-                <div className="text-xs truncate">product-shot.png</div>
-              </div>
-              <div className="flex items-center gap-2 p-2 bg-background-elevated rounded-md border border-border-subtle">
-                <div className="w-8 h-8 rounded bg-emerald-600/30 flex items-center justify-center text-xs"><Music className="w-3.5 h-3.5" /></div>
-                <div className="text-xs truncate">bgm-upbeat.mp3</div>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={onUpload}
+              className="text-xs flex items-center gap-1 text-brand-400 hover:text-brand-300 transition-colors"
+            >
+              <Upload className="w-3 h-3" /> 上传
+            </button>
           </div>
+          {assets.length === 0 ? (
+            <div className="text-xs text-content-tertiary bg-background-elevated rounded-md p-3 border border-border-subtle">
+              暂无素材。上传图片/视频/音频，或设置上方 URL 让 AI 抓取。
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assets.map((asset) => {
+                const Icon = ASSET_ICON[asset.type] || File;
+                const name = asset.original_url?.split('/').pop() || asset.local_path?.split('/').pop() || asset.id;
+                return (
+                  <div
+                    key={asset.id}
+                    className="flex items-center gap-2 p-2 bg-background-elevated rounded-md border border-border-subtle"
+                  >
+                    <div className="w-8 h-8 rounded bg-brand-900/40 flex items-center justify-center text-xs text-brand-400">
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="text-xs truncate flex-1" title={name}>
+                      {name}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

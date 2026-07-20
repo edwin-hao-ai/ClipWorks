@@ -26,6 +26,40 @@
 
 ---
 
+# Agentic Planning Flow Progress
+
+## Baseline
+- Branch: main
+- Baseline commit: dddd5ea
+- Scope: Implement a conversational planning flow so the Agent asks clarifying questions before generating, with streaming UI and plan approval/rejection.
+
+## Tasks
+- Task 1: complete — backend schema exposes `agent_state` and project status includes `planning`.
+- Task 2: complete — frontend `api.ts` adds SSE streaming helper.
+- Task 3: complete — `AgentChat` supports plan mode with streaming, clarifying-question cards, and approve/reject UI.
+- Task 4: complete — `ProjectWorkspacePage` wires planning state and refresh; `LaunchpadPage` drops `autostart=1`.
+- Task 5: complete — backend planning prompt forces clarifying questions before outputting a plan.
+- Task 6: complete — backend tests added for `/chat/stream`, `/approve`, `/reject`.
+- Task 7: complete — frontend tests updated for new AgentChat props and workspace behavior.
+- Task 8: complete — API e2e script `scripts/e2e_agentic_planning.py` verifies real LLM planning -> approve -> generating.
+- Task 9: complete — Playwright UI e2e script `scripts/e2e_agentic_ui.py` verifies plan card, generating state, and reject mode.
+
+## Verification
+- Frontend tests: 70 passed
+- Backend tests: 54 passed
+- Renderer tests: 16 passed
+- API e2e: PASS
+- Playwright UI e2e: PASS
+
+## UI polish follow-up
+- ProjectCard now shows the `planning` state.
+- AssetUploader supports drag-and-drop and can wrap custom drop zones.
+- Assets page drop zone is now functional.
+- AssetGrid/AssetsPage display friendly filenames instead of full URLs/paths.
+- AgentChat streaming no longer shows raw JSON placeholders; it shows "AI 正在整理方案…" while the plan/question JSON streams in.
+
+---
+
 # Multi-Engine Real MP4 Rendering Progress
 
 ## Baseline
@@ -62,3 +96,15 @@
 - Task 3: pending — Stabilize Remotion real MP4 rendering
 - Task 4: pending — Frontend real video preview and download
 - Task 5: pending — End-to-end integration verification
+
+---
+
+# Hybrid HyperFrames + Remotion Rendering Progress
+
+## Baseline
+- Branch: main
+- Baseline commit: 8cecbd2ee22a111fd3580c89e834878bad5eec95
+- Plan: docs/superpowers/plans/2026-07-16-hybrid-hyperframes-remotion-plan.md
+
+## Tasks
+- Task 1: complete (commit 5669262, review noted pre-existing prompt baseline changes; accepted as prior-session baseline)

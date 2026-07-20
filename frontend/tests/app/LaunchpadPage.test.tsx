@@ -7,11 +7,13 @@ const push = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
+  usePathname: () => '/',
 }));
 
 vi.mock('@/lib/api', () => ({
   api: {
     post: vi.fn(),
+    get: vi.fn(() => Promise.resolve([])),
   },
 }));
 
@@ -47,7 +49,7 @@ describe('HomePage', () => {
       });
     });
 
-    expect(push).toHaveBeenCalledWith('/projects/demo-123');
+    expect(push).toHaveBeenCalledWith('/projects/demo-123?initialPrompt=%E6%B5%8B%E8%AF%95%E9%A1%B9%E7%9B%AE');
   });
 
   it('creates a project from a quick prompt', async () => {
@@ -64,7 +66,7 @@ describe('HomePage', () => {
       });
     });
 
-    expect(push).toHaveBeenCalledWith('/projects/demo-456');
+    expect(push).toHaveBeenCalledWith('/projects/demo-456?initialPrompt=%E6%95%99%E7%A8%8B%E8%A7%86%E9%A2%91');
   });
 
   it('displays an error message when project creation fails', async () => {

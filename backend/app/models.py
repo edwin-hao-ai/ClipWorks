@@ -17,6 +17,8 @@ class User(Base):
     avatar_url = Column(String)
     provider = Column(String)
     provider_id = Column(String)
+    credits = Column(Integer, default=10, nullable=False)
+    plan = Column(String, default='free', nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -30,9 +32,10 @@ class Project(Base):
     title = Column(String, nullable=False)
     source_url = Column(String)
     source_type = Column(String, default="url")  # url | upload
-    status = Column(String, default="draft")  # draft | generating | ready | failed
+    status = Column(String, default="draft")  # draft | planning | generating | ready | failed
     target_format = Column(String, default="16:9")  # 16:9 | 9:16 | 1:1
     target_duration = Column(Integer)
+    agent_state = Column(JSON, default=lambda: {"messages": [], "pending_plan": None, "step": "idle"})
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -90,7 +93,7 @@ class MediaAsset(Base):
     id = Column(String, primary_key=True, default=generate_uuid)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False)
     type = Column(String, nullable=False)  # image | video | audio | font | generated
-    source = Column(String, nullable=False)  # upload | pexels | generated | user_url
+    source = Column(String, nullable=False)  # upload | pexels | stock | generated | user_url
     original_url = Column(String)
     local_path = Column(String)
     thumbnail_url = Column(String)
@@ -127,6 +130,7 @@ class RenderJob(Base):
     html_output_path = Column(String)
     html_output_url = Column(String)
     progress = Column(Integer, default=0)
+    logs = Column(JSON, default=list)
     error_message = Column(Text)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)

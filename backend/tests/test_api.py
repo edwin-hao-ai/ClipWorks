@@ -86,6 +86,22 @@ def test_project_ownership(auth_client, other_client):
     assert r2.status_code == 403
 
 
+def test_update_project(auth_client):
+    r = auth_client.post("/projects/", json={"title": "Old Title", "source_url": "https://old.com"})
+    assert r.status_code == 201
+    project_id = r.json()["id"]
+
+    r2 = auth_client.put(
+        f"/projects/{project_id}",
+        json={"title": "New Title", "source_url": "https://new.com", "target_duration": 60},
+    )
+    assert r2.status_code == 200
+    data = r2.json()
+    assert data["title"] == "New Title"
+    assert data["source_url"] == "https://new.com"
+    assert data["target_duration"] == 60
+
+
 def test_create_project_seeds_default_composition(auth_client):
     r = auth_client.post("/projects/", json={"title": "Seeded Project", "source_url": "https://example.com"})
     assert r.status_code == 201
@@ -135,7 +151,26 @@ def test_get_render_not_found(auth_client):
     assert r.status_code == 404
 
 
+def test_plan_switch_refills_credits(auth_client):
+    # 演示环境没有真实支付：切换套餐即按套餐额度补足生成次数，
+    # 保证「额度耗尽 -> 升级套餐」这条 UI 指引不是死局。
+    r = auth_client.put("/auth/me", json={"plan": "free"})
+    assert r.status_code == 200
+    r = auth_client.get("/auth/me/stats")
+    assert r.json()["remaining_credits"] == 10
+
+    r = auth_client.put("/auth/me", json={"plan": "pro"})
+    assert r.status_code == 200
+    r = auth_client.get("/auth/me/stats")
+    assert r.json()["remaining_credits"] == 200
+
+
 def test_render_polling(auth_client):
+    # 共享演示账号的额度会被 e2e 渲染消耗殆尽；切换套餐补足额度（演示环境），
+    # 确保能通过 renders/generate 的 402 门禁。
+    auth_client.put("/auth/me", json={"plan": "free"})
+    auth_client.put("/auth/me", json={"plan": "pro"})
+
     r = auth_client.post("/projects/", json={"title": "Render Poll Project"})
     assert r.status_code == 201
     project_id = r.json()["id"]
@@ -180,3 +215,22 @@ def test_asset_upload_validation(auth_client):
     asset = r4.json()
     assert asset["type"] == "image"
     assert asset["original_url"] == "logo.png"
+
+
+def test_delete_project_removes_assets_dir(auth_client):
+    """删项目必须级联删除素材目录，杜绝「DB 删了、磁盘残留」的孤立目录泄漏。"""
+    import os
+    from app.config import ASSETS_DIR
+
+    r = auth_client.post("/projects/", json={"title": "Delete Cascade Project"})
+    assert r.status_code == 201
+    project_id = r.json()["id"]
+
+    proj_dir = os.path.join(ASSETS_DIR, project_id)
+    os.makedirs(proj_dir, exist_ok=True)
+    with open(os.path.join(proj_dir, "marker.txt"), "w") as f:
+        f.write("x")
+
+    r2 = auth_client.delete(f"/projects/{project_id}")
+    assert r2.status_code == 200
+    assert not os.path.exists(proj_dir)

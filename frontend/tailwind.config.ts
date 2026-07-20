@@ -40,17 +40,19 @@ const config: Config = {
         warning: 'var(--warning)',
         error: 'var(--error)',
         info: 'var(--info)',
+        // 时间线色用十六进制字面量而非 var()：Tailwind 无法对 var() 颜色
+        // 生成 /10、/90 透明度修饰类（背景会静默透明）。浅色主题不覆盖这些色。
         timeline: {
-          video: 'var(--timeline-video)',
-          image: 'var(--timeline-image)',
-          audio: 'var(--timeline-audio)',
-          text: 'var(--timeline-text)',
-          overlay: 'var(--timeline-overlay)',
+          video: '#0ea5e9',
+          image: '#8b5cf6',
+          audio: '#10b981',
+          text: '#f59e0b',
+          overlay: '#ec4899',
         },
       },
       fontFamily: {
-        sans: ['"Inter"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+        sans: ['var(--font-sans)', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', '"SFMono-Regular"', 'Menlo', 'monospace'],
       },
       borderRadius: {
         sm: 'var(--radius-sm)',

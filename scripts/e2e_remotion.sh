@@ -25,7 +25,7 @@ JOB_ID=$(echo "$JOB" | jq -r '.job_id')
 
 echo "=== 4. Poll job status ==="
 STATUS=""
-for i in {1..120}; do
+for i in {1..240}; do
   STATUS=$(curl -s -c "$COOKIE_JAR" -b "$COOKIE_JAR" "$API/projects/$PROJECT_ID/renders/$JOB_ID")
   echo "[$i] $(echo "$STATUS" | jq -c .)"
   JOB_STATUS=$(echo "$STATUS" | jq -r '.status')
@@ -33,7 +33,7 @@ for i in {1..120}; do
     echo "$STATUS" > "$STATUS_FILE"
     break
   fi
-  sleep 3
+  sleep 5
 done
 
 if [ ! -f "$STATUS_FILE" ]; then

@@ -10,6 +10,14 @@ class RenderRequest:
     user_prompt: Optional[str] = None
     source_url: Optional[str] = None
     raw_assets: Optional[list[str]] = None
+    # Agent-recommended engine from the approved plan (e.g. "hyperframes").
+    # Used by the selector when the user did not explicitly pick an engine.
+    engine_hint: Optional[str] = None
+    # Pre-generated HyperFrames HTML from the render task. When present,
+    # providers must reuse it instead of calling the (slow) LLM HTML generator
+    # a second time.
+    html_path: Optional[str] = None
+    html_url: Optional[str] = None
 
 
 @dataclass

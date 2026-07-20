@@ -3,17 +3,24 @@ import { GenericComp } from "./compositions/GenericComp";
 
 interface CompositionProps {
   composition: {
+    width?: number;
+    height?: number;
     duration?: number;
     tracks?: unknown[];
   };
+  assets?: Record<string, string>;
 }
 
 const calculateMetadata: CalculateMetadataFunction<CompositionProps> = ({
   props,
 }) => {
-  const duration = props.composition?.duration ?? 30;
+  const composition = props.composition || {};
+  const duration = composition.duration ?? 30;
   return {
     durationInFrames: Math.max(1, Math.round(duration * 30)),
+    width: composition.width ?? 1920,
+    height: composition.height ?? 1080,
+    props,
   };
 };
 
@@ -26,7 +33,7 @@ const RemotionRoot: React.FC = () => {
       fps={30}
       width={1920}
       height={1080}
-      defaultProps={{ composition: { duration: 30, tracks: [] } }}
+      defaultProps={{ composition: { duration: 30, tracks: [] }, assets: {} }}
       calculateMetadata={calculateMetadata}
     />
   );

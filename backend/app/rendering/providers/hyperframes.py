@@ -19,12 +19,16 @@ class HyperFramesProvider(RenderProvider):
     async def render(self, job, project, request: RenderRequest) -> RenderResult:
         project_dir = os.path.join(ASSETS_DIR, project.id)
         os.makedirs(project_dir, exist_ok=True)
-        html_path = os.path.join(project_dir, "index.html")
         output_path = os.path.join(project_dir, "output.mp4")
 
-        html = generate_html(request.composition, request.assets)
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html)
+        # Reuse the HTML the render task already produced. Generating it again
+        # here would mean a second slow LLM call (which frequently times out)
+        # with no visible progress to the user.
+        html_path = request.html_path or os.path.join(project_dir, "index.html")
+        if not (request.html_path and os.path.exists(html_path)):
+            html = generate_html(request.composition, request.assets)
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html)
 
         payload = {
             "html_path": html_path,
@@ -32,7 +36,9 @@ class HyperFramesProvider(RenderProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=300) as client:
+            # Fail fast if the renderer hangs (e.g. Chromium unavailable on
+            # ARM64). Letting this sit for 300s makes the UI look frozen.
+            async with httpx.AsyncClient(timeout=90) as client:
                 resp = await client.post(f"{RENDERER_URL}/render/hyperframes", json=payload)
                 resp.raise_for_status()
                 data = resp.json()

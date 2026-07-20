@@ -42,8 +42,10 @@ def main():
 
         src = video.get_attribute("src")
         print("Video src:", src)
-        if not src or not src.startswith("http://localhost:8000"):
-            print("FAIL: video src is not absolute backend URL")
+        # output_url 按设计存相对路径 /api/static/...（Next.js rewrites 代理到后端，
+        # 见 AGENTS.md §7.2）；兼容旧的绝对后端 URL 格式。
+        if not src or not (src.startswith("/api/static/") or src.startswith("http://localhost:8000")):
+            print("FAIL: video src is neither /api/static/ relative path nor absolute backend URL")
             browser.close()
             return
 

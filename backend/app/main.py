@@ -35,7 +35,7 @@ _seed_assets_dir = os.path.join(os.path.dirname(__file__), "..", "seed_assets")
 if os.path.isdir(_seed_assets_dir):
     shutil.copytree(_seed_assets_dir, "data/assets", dirs_exist_ok=True)
 
-app.mount("/api/static", StaticFiles(directory="data/assets"), name="static")
+app.mount("/api/static", StaticFiles(directory=config.ASSETS_DIR), name="static")
 
 app.include_router(auth.router)
 app.include_router(projects.router)

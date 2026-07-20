@@ -4,9 +4,12 @@ from typing import List
 from app.database import get_db
 from app.models import MediaAsset, Project, User
 from app.routers.auth import get_current_user
+import logging
 import os
 import re
 import shutil
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/assets", tags=["assets"])
 
@@ -52,6 +55,23 @@ def _get_asset_type(ext: str) -> str:
     if ext_lower in {".ttf", ".otf", ".woff", ".woff2"}:
         return "font"
     return "image"
+
+
+def _resolve_under_upload_dir(local_path: str | None) -> str | None:
+    """Return the absolute path if it lives under UPLOAD_DIR, else None.
+
+    删除磁盘文件前先做路径穿越校验，避免 local_path 被篡改后删到目录外。
+    """
+    if not local_path:
+        return None
+    base = os.path.abspath(UPLOAD_DIR)
+    candidate = os.path.abspath(local_path)
+    try:
+        if os.path.commonpath([base, candidate]) != base:
+            return None
+    except ValueError:
+        return None
+    return candidate
 
 
 def _require_project(project_id: str, user: User, db: Session) -> Project:
@@ -113,3 +133,32 @@ def upload_asset(
     db.commit()
     db.refresh(asset)
     return asset
+
+
+@router.delete("/{asset_id}")
+def delete_asset(
+    project_id: str,
+    asset_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_project(project_id, user, db)
+
+    # 必须确认素材确实属于该项目，避免越权删除其它项目的素材。
+    asset = db.query(MediaAsset).filter(MediaAsset.id == asset_id).first()
+    if not asset or asset.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    # 仅在文件位于上传目录内时才删除磁盘文件；文件已不存在则忽略。
+    disk_path = _resolve_under_upload_dir(asset.local_path)
+    if disk_path:
+        try:
+            os.remove(disk_path)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Failed to remove asset file %s: %s", disk_path, exc)
+
+    db.delete(asset)
+    db.commit()
+    return {"ok": True}

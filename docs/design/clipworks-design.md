@@ -1,3 +1,6 @@
+---
+title: ClipWorks（映工厂）Design System
+---
 # ClipWorks（映工厂）Design System
 
 > A design.md for the AI video factory.  

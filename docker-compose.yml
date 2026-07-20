@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
@@ -10,18 +9,37 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   renderer:
     build: ./services/renderer
+    # init: true 让 Docker 在容器内以 tini 作为 PID 1。渲染会派生 Chromium 孙进程，
+    # 失败/退出时孙进程被 reparent 到 PID 1；uvicorn 不会 wait() 它们，僵尸会累积
+    # （实测每次渲染残留 2-8 个 defunct chrome），tini 负责收割，避免长跑后 PID 耗尽。
+    init: true
+    env_file:
+      - ./backend/.env
     environment:
       - ASSETS_DIR=/app/data/assets
       - REMOTION_DISABLE_CHROMIUM_SANDBOX=true
       - PUPPETEER_EXECUTABLE_PATH=/root/.cache/ms-playwright/chromium-1228/chrome-linux/chrome
+      - KIMI_BASE_URL=${KIMI_BASE_URL:-https://api.kimi.com/coding/v1}
+      - KIMI_MODEL=${KIMI_MODEL:-moonshot-v1-8k}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:
       - ./data/assets:/app/data/assets
     ports:
@@ -32,6 +50,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   backend:
     build: ./backend
@@ -41,6 +64,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://clipworks:clipworks@postgres:5432/clipworks
       REDIS_URL: redis://redis:6379/0
       RENDERER_URL: http://renderer:8000
+      ASSETS_BASE_URL: http://backend:8000
     volumes:
       - ./backend:/app
       - ./data/assets:/app/data/assets
@@ -54,6 +78,11 @@ services:
     ports:
       - "8000:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   worker:
     build: ./backend
@@ -63,6 +92,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://clipworks:clipworks@postgres:5432/clipworks
       REDIS_URL: redis://redis:6379/0
       RENDERER_URL: http://renderer:8000
+      ASSETS_BASE_URL: http://backend:8000
     volumes:
       - ./backend:/app
       - ./data/assets:/app/data/assets
@@ -70,12 +100,23 @@ services:
       - postgres
       - redis
       - renderer
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=1
+    # --concurrency=2：prefork 起 2 个子进程，单 worker 可并行执行 2 个渲染任务。
+    # 内存成本：Remotion/Chromium 实际运行在 renderer 容器，每个并发渲染约占
+    # 2-4GB（Chromium + ffmpeg），并发为 2 时 renderer 峰值约 4-8GB，宿主机建议
+    # 预留 ≥10GB 给 Docker；worker 自身每个 prefork 子进程仅 ~200MB。若并发渲染
+    # 因内存不足崩溃，降回 --concurrency=1 即可恢复串行（任务仍带 900s 硬时限）。
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build: ./frontend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      INTERNAL_API_URL: http://backend:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -84,6 +125,11 @@ services:
     depends_on:
       - backend
     command: npm run dev
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:

@@ -58,11 +58,22 @@ def get_composition(project_id: str, user: User = Depends(get_current_user), db:
 @router.put("/{project_id}")
 def update_composition(project_id: str, data: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     comp = _require_composition(project_id, user, db)
+    # Apply top-level composition fields before recreating tracks so editor
+    # saves for canvas size / fps / metadata are persisted.
+    if "width" in data:
+        comp.width = int(data["width"])
+    if "height" in data:
+        comp.height = int(data["height"])
+    if "fps" in data:
+        comp.fps = int(data["fps"])
+    if "metadata" in data:
+        comp.metadata_ = data["metadata"]
     # Clear existing tracks and recreate from payload. Use ORM deletes so the
     # cascade="all, delete-orphan" on Track.clips is honored.
     for track in comp.tracks:
         db.delete(track)
     db.flush()
+    max_end = 0
     for t_data in data.get("tracks", []):
         track = Track(
             composition_id=comp.id,
@@ -73,15 +84,24 @@ def update_composition(project_id: str, data: dict, user: User = Depends(get_cur
         db.add(track)
         db.flush()
         for c_data in t_data.get("clips", []):
+            start = float(c_data.get("start_time", 0) or 0)
+            duration = float(c_data.get("duration", 5) or 5)
+            end = start + duration
+            if end > max_end:
+                max_end = end
             clip = Clip(
                 track_id=track.id,
                 asset_id=c_data.get("asset_id"),
-                start_time=c_data.get("start_time", 0),
-                duration=c_data.get("duration", 5),
+                start_time=start,
+                duration=duration,
                 position=c_data.get("position", {}),
                 style=c_data.get("style", {}),
                 text_content=c_data.get("text_content"),
             )
             db.add(clip)
+    # Keep the composition duration in sync with the actual timeline so
+    # renderers like Remotion don't pad the output with empty frames.
+    if max_end > 0:
+        comp.duration = max(1, int(max_end))
     db.commit()
     return build_composition_json(comp)
