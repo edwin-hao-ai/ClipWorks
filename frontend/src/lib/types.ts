@@ -90,10 +90,14 @@ export interface AgentUnderstandPayload {
 export interface AgentScriptPayload {
   title?: string;
   hook?: string;
+  roles?: { name: string; perspective: string }[];
   narrative_arc?: string;
   cta?: string;
   duration?: number;
   format?: string;
+  style?: string;
+  mood?: string;
+  rhythm?: string;
 }
 
 export interface AgentAssetsPayload {

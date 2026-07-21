@@ -49,6 +49,7 @@ describe('AgentCanvas', () => {
           script: {
             title: 'Summer Sale',
             hook: '50% off today only',
+            roles: [{ name: '旁白', perspective: '品牌方' }],
             narrative_arc: 'Intro → Offer → CTA',
             cta: 'Shop now',
             duration: 15,
@@ -60,6 +61,7 @@ describe('AgentCanvas', () => {
     expect(screen.getByText('Summer Sale')).toBeInTheDocument();
     expect(screen.getByText('50% off today only')).toBeInTheDocument();
     expect(screen.getByText('Intro → Offer → CTA')).toBeInTheDocument();
+    expect(screen.getByText('旁白 · 品牌方')).toBeInTheDocument();
   });
 
   it('renders assets list', () => {
@@ -129,7 +131,7 @@ describe('AgentCanvas', () => {
 
   it('renders render status / preview placeholder', () => {
     render(<AgentCanvas agentState={state('render')} />);
-    expect(screen.getByText('等待渲染完成…')).toBeInTheDocument();
+    expect(screen.getByText('渲染准备中…')).toBeInTheDocument();
   });
 
   it('falls back to understand when agentState is missing', () => {

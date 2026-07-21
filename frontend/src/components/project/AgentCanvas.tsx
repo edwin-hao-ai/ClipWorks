@@ -1,15 +1,14 @@
 'use client';
 
+import type { ComponentType, ReactNode } from 'react';
 import {
   AgentState,
-  Project,
   AgentUnderstandPayload,
   AgentScriptPayload,
   AgentAssetsPayload,
   AgentScenesPayload,
   AgentEffectsPayload,
 } from '@/lib/types';
-import { VideoPreview } from './VideoPreview';
 import {
   Lightbulb,
   FileText,
@@ -21,7 +20,6 @@ import {
 
 export interface AgentCanvasProps {
   agentState?: AgentState;
-  project?: Project;
 }
 
 const STEP_TITLES: Record<string, string> = {
@@ -39,8 +37,8 @@ function Card({
   children,
 }: {
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
+  icon: ComponentType<{ className?: string }>;
+  children: ReactNode;
 }) {
   return (
     <div className="bg-background-surface border border-border-subtle rounded-lg p-5 h-full">
@@ -53,7 +51,7 @@ function Card({
   );
 }
 
-function MetaChip({ children }: { children: React.ReactNode }) {
+function MetaChip({ children }: { children: ReactNode }) {
   return (
     <span className="px-2.5 py-1 rounded-full text-xs bg-background-elevated border border-border-subtle text-content-secondary">
       {children}
@@ -61,7 +59,7 @@ function MetaChip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function EmptyState({ children }: { children: React.ReactNode }) {
+function EmptyState({ children }: { children: ReactNode }) {
   return <p className="text-sm text-content-tertiary">{children}</p>;
 }
 
@@ -92,23 +90,17 @@ function UnderstandArtifact({ payload }: { payload?: AgentUnderstandPayload }) {
   );
 }
 
-function ScriptArtifact({
-  payload,
-  fullScript,
-}: {
-  payload?: AgentScriptPayload;
-  fullScript?: AgentState['script'];
-}) {
+function ScriptArtifact({ payload }: { payload?: AgentScriptPayload }) {
   const s = payload || {};
-  const roles = fullScript?.roles || [];
+  const roles = s.roles || [];
 
   return (
     <Card title={STEP_TITLES.script} icon={FileText}>
       <h4 className="text-xl font-bold text-content-primary mb-2">
-        {s.title || fullScript?.title || '未命名'}
+        {s.title || '未命名'}
       </h4>
-      {(s.hook || fullScript?.hook) && (
-        <p className="text-brand-400 mb-4">{s.hook || fullScript?.hook}</p>
+      {s.hook && (
+        <p className="text-brand-400 mb-4">{s.hook}</p>
       )}
       {roles.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
@@ -119,14 +111,14 @@ function ScriptArtifact({
           ))}
         </div>
       )}
-      {(s.narrative_arc || fullScript?.narrative_arc) && (
+      {s.narrative_arc && (
         <p className="text-content-secondary text-sm whitespace-pre-line mb-4">
-          {s.narrative_arc || fullScript?.narrative_arc}
+          {s.narrative_arc}
         </p>
       )}
-      {(s.cta || fullScript?.cta) && (
+      {s.cta && (
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-brand-500/10 border border-brand-500/30 text-brand-400 text-sm">
-          CTA：{s.cta || fullScript?.cta}
+          CTA：{s.cta}
         </div>
       )}
     </Card>
@@ -244,30 +236,21 @@ function EffectsArtifact({ payload }: { payload?: AgentEffectsPayload }) {
   );
 }
 
-function RenderArtifact({ project }: { project?: Project }) {
-  const outputUrl = project?.latest_output_url || null;
-  const isPlaceholder = false;
-
+function RenderArtifact() {
   return (
     <Card title={STEP_TITLES.render} icon={Film}>
-      {outputUrl ? (
-        <div className="h-64">
-          <VideoPreview outputUrl={outputUrl} htmlOutputUrl={null} isPlaceholder={isPlaceholder} />
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Film className="w-10 h-10 text-content-tertiary mb-3" />
-          <p className="text-sm text-content-secondary">等待渲染完成…</p>
-          <p className="text-xs text-content-tertiary mt-1">
-            渲染完成后将在此显示成片预览。
-          </p>
-        </div>
-      )}
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <Film className="w-10 h-10 text-content-tertiary mb-3" />
+        <p className="text-sm text-content-secondary">渲染准备中…</p>
+        <p className="text-xs text-content-tertiary mt-1">
+          渲染完成后将在此显示成片预览。
+        </p>
+      </div>
     </Card>
   );
 }
 
-export function AgentCanvas({ agentState, project }: AgentCanvasProps) {
+export function AgentCanvas({ agentState }: AgentCanvasProps) {
   const step = agentState?.step || 'understand';
   const payload = agentState?.payload || {};
 
@@ -275,7 +258,7 @@ export function AgentCanvas({ agentState, project }: AgentCanvasProps) {
     case 'understand':
       return <UnderstandArtifact payload={payload.understand} />;
     case 'script':
-      return <ScriptArtifact payload={payload.script} fullScript={agentState?.script} />;
+      return <ScriptArtifact payload={payload.script} />;
     case 'assets':
       return <AssetsArtifact payload={payload.assets} />;
     case 'scenes':
@@ -283,7 +266,7 @@ export function AgentCanvas({ agentState, project }: AgentCanvasProps) {
     case 'effects':
       return <EffectsArtifact payload={payload.effects} />;
     case 'render':
-      return <RenderArtifact project={project} />;
+      return <RenderArtifact />;
     default:
       return (
         <Card title="当前步骤" icon={Lightbulb}>
