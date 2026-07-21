@@ -203,3 +203,34 @@ def test_agent_action_defaults():
     assert action.payload == {}
     assert action.requires_confirmation is True
     assert action.confirmation_message == ""
+
+
+def test_decide_action_parses_llm_json():
+    orch = Orchestrator()
+    orch.client.chat_completion_stream = lambda *args, **kwargs: iter(
+        ['```json\n{"action": "ask", "response_to_user": "What?", "confirmation_message": "What?"}\n```']
+    )
+    action = orch.decide_action("ctx")
+    assert action is not None
+    assert action.action == "ask"
+    assert action.response_to_user == "What?"
+    assert action.confirmation_message == "What?"
+
+
+def test_decide_action_returns_fallback_on_llm_error():
+    orch = Orchestrator()
+
+    def _raise(*args, **kwargs):
+        raise Exception("boom")
+
+    orch.client.chat_completion_stream = _raise
+    action = orch.decide_action("ctx")
+    assert action is not None
+    assert action.action == "ask"
+    assert "我没听清" in action.response_to_user
+
+
+def test_decide_action_returns_none_on_unparseable_output():
+    orch = Orchestrator()
+    orch.client.chat_completion_stream = lambda *args, **kwargs: iter(["not json"])
+    assert orch.decide_action("ctx") is None
