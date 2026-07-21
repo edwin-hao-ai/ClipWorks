@@ -10,7 +10,14 @@ from pydantic import BaseModel, Field
 from app.agent.llm import KimiClient
 from app.agent.prompts import ARCHITECT_SYSTEM_PROMPT
 from app.agent.session import AgentSession, sse_event, sse_text
-from app.agent.tools import run_understand, run_script
+from app.agent.tools import (
+    run_assets,
+    run_effects,
+    run_render,
+    run_scenes,
+    run_script,
+    run_understand,
+)
 from app.config import KIMI_PLANNING_MODEL
 
 logger = logging.getLogger(__name__)
@@ -58,6 +65,10 @@ class Orchestrator:
         self.tools = {
             "understand": run_understand,
             "script": run_script,
+            "assets": run_assets,
+            "scenes": run_scenes,
+            "effects": run_effects,
+            "render": run_render,
         }
         self.client = KimiClient(model=KIMI_PLANNING_MODEL)
 

@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 
 from app.agent.llm import LLMUnavailableError
-from app.agent.tools import run_script, run_understand
+from app.agent.tools import run_assets, run_script, run_understand
 
 
 def _project(**overrides):
@@ -93,8 +93,17 @@ def test_run_understand_uses_project_title_when_user_input_empty():
 def test_run_script_uses_existing_step():
     project = MagicMock()
     state = {"payload": {}}
-    with patch("app.agent.tools.run_script_step") as mock_step:
+    with patch("app.agent.tools.run_step") as mock_step:
         mock_step.return_value = iter(['{"type": "done"}'])
         result = list(run_script(project, state, "make it punchier"))
     assert result == ['{"type": "done"}']
     mock_step.assert_called_once_with("script", project, state, "make it punchier")
+
+
+def test_run_assets_uses_step_generator():
+    project = MagicMock()
+    state = {"payload": {}}
+    with patch("app.agent.tools.run_step") as mock_step:
+        mock_step.return_value = iter(['{"type": "done"}'])
+        list(run_assets(project, state, ""))
+    mock_step.assert_called_once_with("assets", project, state, "")
