@@ -138,26 +138,49 @@ def test_step_out_of_order(auth_client, project):
     assert "Please complete assets" in r.json()["detail"]
 
 
-def test_concurrent_step_returns_409(auth_client, project, monkeypatch):
+def test_concurrent_step_returns_409(project, monkeypatch):
     """A second step request while one is generating must return 409."""
+    import threading
+    import time
+
     pid = project["id"]
+    done = threading.Event()
 
     def slow_step(*args, **kwargs):
         yield json.dumps({"type": "token", "text": "working"})
+        # Block the generator until the test has verified the concurrent lock.
+        done.wait()
+        yield json.dumps({"type": "token", "text": "finished"})
 
     monkeypatch.setattr("app.routers.agent.run_step", slow_step)
 
-    # start a step but do not consume the stream
-    r = auth_client.post(f"/projects/{pid}/agent/step/script", json={})
-    assert r.status_code == 200
+    client1 = TestClient(app)
+    assert client1.post("/auth/mock-login?provider=google").status_code == 200
+    client2 = TestClient(app)
+    assert client2.post("/auth/mock-login?provider=google").status_code == 200
 
-    # second step while first is in progress
-    r2 = auth_client.post(f"/projects/{pid}/agent/step/assets", json={})
-    assert r2.status_code == 409
-    assert "Already generating" in r2.json()["detail"]
+    result = {"status": None}
 
-    # consume first stream to release lock
-    list(r.iter_lines())
+    def first_request():
+        # This blocks because the generator waits on done.wait() after one yield.
+        r = client1.post(f"/projects/{pid}/agent/step/script", json={})
+        result["status"] = r.status_code
+
+    t = threading.Thread(target=first_request)
+    t.start()
+    # Wait for the first endpoint to acquire the lock and start generating.
+    time.sleep(0.5)
+
+    try:
+        # Second request should see the lock still held.
+        r2 = client2.post(f"/projects/{pid}/agent/step/assets", json={})
+        assert r2.status_code == 409
+        assert "Already generating" in r2.json()["detail"]
+    finally:
+        done.set()
+
+    t.join(timeout=5)
+    assert result["status"] == 200
 
 
 def test_step_script_stream(auth_client, project, monkeypatch):

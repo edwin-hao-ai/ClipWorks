@@ -24,8 +24,11 @@ def main():
     args = parser.parse_args()
 
     s = requests.Session()
-    # Assumes mock auth cookie already set or auth is disabled in test mode.
-    # For local dev, visit http://localhost:3000/login first to get the cookie.
+    # Mock auth: establish a session cookie first.
+    r = s.post(f"{args.api}/auth/mock-login?provider=google")
+    print("login", r.status_code)
+    if r.status_code != 200:
+        sys.exit(1)
 
     r = s.post(f"{args.api}/projects/{args.project_id}/agent/reset")
     print("reset", r.status_code, r.json())
