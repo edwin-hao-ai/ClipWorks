@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Project, RenderJob, User
 from app.routers.auth import get_current_user
+from app.services.credits import check_credits
 from app.tasks.render_task import render_video_task
 
 logger = logging.getLogger(__name__)
@@ -24,16 +25,6 @@ def _require_project(project_id: str, user: User, db: Session) -> Project:
     if project.user_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized for this project")
     return project
-
-
-def _check_credits(user: User) -> None:
-    """Hard gate: refuse to queue a new render when the user has no credits left.
-
-    Returns HTTP 402 so the frontend can render an inline upgrade prompt instead
-    of silently falling back to a placeholder or blowing up the workspace.
-    """
-    if (user.credits or 0) <= 0:
-        raise HTTPException(status_code=402, detail="额度不足，请前往计费页升级套餐")
 
 
 def _is_placeholder(job: RenderJob) -> bool:
@@ -79,7 +70,7 @@ def generate_video(
     db: Session = Depends(get_db),
 ):
     project = _require_project(project_id, user, db)
-    _check_credits(user)
+    check_credits(user)
     project.status = "generating"
     db.commit()
 
@@ -110,7 +101,7 @@ def agent_generate_video(
 ):
     """Regenerate video using the Agent, optionally guided by a user prompt and engine choice."""
     project = _require_project(project_id, user, db)
-    _check_credits(user)
+    check_credits(user)
     prompt = data.get("prompt") if isinstance(data, dict) else None
     engine = data.get("engine") if isinstance(data, dict) else None
 

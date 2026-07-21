@@ -16,12 +16,14 @@ interface AgentChatProps {
   projectId: string;
   selectedSceneId?: string | null;
   scenes?: Scene[];
-  mode: 'plan' | 'modify';
+  mode: 'plan' | 'modify' | 'vibe';
   agentState?: AgentState;
   initialPrompt?: string;
   sourceUrl?: string;
   size?: 'sm' | 'lg';
+  initialMessages?: Message[];
   onStatusChange: (status: Project['status']) => void;
+  onAgentStateChange?: (state: AgentState) => void;
 }
 
 const MODIFY_QUICK_PROMPTS = [
@@ -30,6 +32,13 @@ const MODIFY_QUICK_PROMPTS = [
   '把标题改成红色',
   '缩短到 15 秒',
   '换背景音乐',
+];
+
+const VIBE_QUICK_PROMPTS = [
+  '生成 30 秒短视频',
+  '换成 9:16 竖屏',
+  '加一段开场动画',
+  '用更活泼的风格',
 ];
 
 const PLAN_QUICK_PROMPTS = [
@@ -140,11 +149,16 @@ export function AgentChat({
   initialPrompt,
   sourceUrl,
   size = 'sm',
+  initialMessages: initialMessagesProp,
   onStatusChange,
+  onAgentStateChange,
 }: AgentChatProps) {
   const isLg = size === 'lg';
 
   const initialMessages = useMemo<Message[]>(() => {
+    if (initialMessagesProp && initialMessagesProp.length > 0) {
+      return initialMessagesProp;
+    }
     if (agentState?.messages && agentState.messages.length > 0) {
       return agentState.messages.map((m) => ({
         role: m.role === 'user' ? 'user' : 'agent',
@@ -159,13 +173,21 @@ export function AgentChat({
         },
       ];
     }
+    if (mode === 'vibe') {
+      return [
+        {
+          role: 'agent',
+          text: 'Hi! 我是你的 Vibe 创作助手。告诉我你想做什么样的视频，我会边想边做。',
+        },
+      ];
+    }
     return [
       {
         role: 'agent',
         text: 'Hi! 我是你的 AI 导演。输入一句话开始创作，或点击左侧场景卡片修改某个画面。',
       },
     ];
-  }, [agentState, mode]);
+  }, [agentState, mode, initialMessagesProp]);
 
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState('');
@@ -176,6 +198,16 @@ export function AgentChat({
   const [decisionLoading, setDecisionLoading] = useState<'approve' | 'reject' | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // AbortController for the in-flight Vibe stream. A new message aborts the
+  // previous one, and unmounting aborts any active stream to avoid setState
+  // after teardown.
+  const vibeAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      vibeAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -214,14 +246,18 @@ export function AgentChat({
   useEffect(() => {
     if (
       !autoSentRef.current &&
-      mode === 'plan' &&
+      (mode === 'plan' || mode === 'vibe') &&
       initialPrompt &&
       !loading &&
       !agentState?.messages?.length
     ) {
       autoSentRef.current = true;
       setMessages((prev) => [...prev, { role: 'user', text: initialPrompt }]);
-      handlePlanStream(initialPrompt);
+      if (mode === 'plan') {
+        handlePlanStream(initialPrompt);
+      } else {
+        handleVibeStream(initialPrompt);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initialPrompt, loading, agentState?.messages?.length]);
@@ -350,9 +386,145 @@ export function AgentChat({
     }
   };
 
+  // 用于合并 Vibe 流中的 artifact 事件，保持 AgentState 的其它字段不变。
+  const agentStateRef = useRef<AgentState | undefined>(agentState);
+  useEffect(() => {
+    agentStateRef.current = agentState;
+  }, [agentState]);
+
+  const emitAgentState = (patch: Partial<AgentState>) => {
+    const next: AgentState = {
+      step: agentStateRef.current?.step || 'chatting',
+      ...(agentStateRef.current || {}),
+      ...patch,
+    };
+    agentStateRef.current = next;
+    onAgentStateChange?.(next);
+  };
+
+  const handleVibeStream = async (text: string) => {
+    // Cancel any previous Vibe stream before starting a new one so that stale
+    // responses don't overwrite the current UI state.
+    vibeAbortRef.current?.abort();
+    const controller = new AbortController();
+    vibeAbortRef.current = controller;
+
+    setLoading(true);
+    setError(null);
+    setStreamingText('');
+
+    let currentReply = '';
+
+    try {
+      for await (const event of api.stream(`/projects/${projectId}/agent/vibe/stream`, {
+        message: text,
+      }, controller.signal)) {
+        if (!event || typeof event !== 'object') continue;
+
+        switch (event.type) {
+          case 'token': {
+            const token = (event as { text?: string }).text;
+            if (typeof token === 'string') {
+              currentReply += token;
+              setStreamingText(currentReply);
+            }
+            break;
+          }
+          case 'question': {
+            const question = (event as { text?: string }).text;
+            if (typeof question === 'string') {
+              setMessages((prev) => [...prev, { role: 'agent', text: question }]);
+              // The same text was also streamed as tokens; clear the
+              // accumulator so it isn't appended again at stream end.
+              currentReply = '';
+            }
+            break;
+          }
+          case 'job_created': {
+            onStatusChange('generating');
+            break;
+          }
+          case 'artifact': {
+            const kind = (event as { kind?: string }).kind;
+            const data = (event as { data?: unknown }).data;
+            if (kind) {
+              const payload: NonNullable<AgentState['payload']> = {
+                ...(agentStateRef.current?.payload || {}),
+              };
+              switch (kind) {
+                case 'understand':
+                  payload.understand = data as NonNullable<AgentState['payload']>['understand'];
+                  break;
+                case 'script':
+                  payload.script = data as NonNullable<AgentState['payload']>['script'];
+                  break;
+                case 'assets':
+                  payload.assets = data as NonNullable<AgentState['payload']>['assets'];
+                  break;
+                case 'scenes':
+                  payload.scenes = data as NonNullable<AgentState['payload']>['scenes'];
+                  break;
+                case 'effects':
+                  payload.effects = data as NonNullable<AgentState['payload']>['effects'];
+                  break;
+              }
+              emitAgentState({ step: kind as AgentState['step'], payload });
+            }
+            break;
+          }
+          case 'progress': {
+            const step = (event as { step?: string }).step;
+            if (typeof step === 'string') {
+              emitAgentState({ generating_step: step as AgentState['step'] });
+            }
+            break;
+          }
+          case 'error': {
+            const message = (event as { message?: string }).message;
+            if (typeof message === 'string') {
+              setError(formatAgentError(message, 'Vibe 创作失败'));
+            }
+            break;
+          }
+          case 'done': {
+            // The backend sends { type: 'done', step: session.step }; the
+            // accumulated payload is already merged via artifact events.
+            const step = (event as { step?: AgentState['step'] }).step;
+            if (step) {
+              emitAgentState({ step });
+            }
+            break;
+          }
+        }
+
+        if (event.type === 'done') break;
+      }
+      if (currentReply) {
+        setMessages((prev) => [...prev, { role: 'agent', text: currentReply }]);
+      }
+    } catch (err) {
+      // Intentional cancellation (new message or unmount) should not surface an
+      // error banner; only the active stream owns the loading/UI state.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      const msg = err instanceof Error ? err.message : 'Vibe 请求失败';
+      setError(msg);
+      setMessages((prev) => [...prev, { role: 'agent', text: `抱歉，Vibe 创作遇到问题：${msg}` }]);
+    } finally {
+      // Only clear loading if this stream is still the current one. If a newer
+      // message started, it has already taken over the UI state.
+      if (vibeAbortRef.current === controller) {
+        setLoading(false);
+        setStreamingText('');
+        vibeAbortRef.current = null;
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || (mode !== 'vibe' && loading)) return;
 
     if (mode === 'plan') {
       if (rejectMode) {
@@ -363,12 +535,17 @@ export function AgentChat({
         handlePlanStream(input);
       }
       setInput('');
+    } else if (mode === 'vibe') {
+      setMessages((prev) => [...prev, { role: 'user', text: input }]);
+      handleVibeStream(input);
+      setInput('');
     } else {
       sendModification(input);
     }
   };
 
-  const quickPrompts = mode === 'plan' ? PLAN_QUICK_PROMPTS : MODIFY_QUICK_PROMPTS;
+  const quickPrompts =
+    mode === 'plan' ? PLAN_QUICK_PROMPTS : mode === 'vibe' ? VIBE_QUICK_PROMPTS : MODIFY_QUICK_PROMPTS;
 
   return (
     <div
@@ -380,7 +557,7 @@ export function AgentChat({
       <div className={clsx('flex items-center shrink-0 border-b border-border-subtle', isLg ? 'gap-3 p-5' : 'gap-2 p-3')}>
         <MessageSquare className={clsx('text-brand-400', isLg ? 'w-5 h-5' : 'w-4 h-4')} />
         <span className={clsx('font-semibold', isLg ? 'text-base' : 'text-sm')}>
-          {mode === 'plan' ? 'AI 导演 · 规划' : 'AI 导演 · 修改'}
+          {mode === 'plan' ? 'AI 导演 · 规划' : mode === 'vibe' ? 'Vibe 创作' : 'AI 导演 · 修改'}
         </span>
         {selectedScene && (
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-brand-900/40 text-brand-400 border border-brand-900/60 flex items-center gap-1">
@@ -668,11 +845,14 @@ export function AgentChat({
                   } else {
                     handlePlanStream(p);
                   }
+                } else if (mode === 'vibe') {
+                  setMessages((prev) => [...prev, { role: 'user', text: p }]);
+                  handleVibeStream(p);
                 } else {
                   sendModification(p);
                 }
               }}
-              disabled={loading || decisionLoading !== null}
+              disabled={(mode !== 'vibe' && loading) || decisionLoading !== null}
               className={clsx(
                 'rounded-full bg-background-elevated border border-border-subtle text-content-secondary hover:text-content-primary hover:border-border-default transition-colors disabled:opacity-50',
                 isLg ? 'text-sm px-3 py-1.5' : 'text-xs px-2 py-1'
@@ -694,15 +874,17 @@ export function AgentChat({
                 ? `修改「${selectedScene.name}」…`
                 : mode === 'plan'
                 ? '描述你想做的视频…'
+                : mode === 'vibe'
+                ? '描述你的 Vibe 视频想法…'
                 : '输入创作或修改指令…'
             }
-            disabled={loading || decisionLoading !== null}
+            disabled={(mode !== 'vibe' && loading) || decisionLoading !== null}
             className={clsx(
               'flex-1 min-w-0 bg-background-elevated border border-border-subtle text-content-primary placeholder-content-tertiary focus:outline-none focus:border-brand-500 disabled:opacity-50',
               isLg ? 'px-4 py-3 text-base rounded-lg' : 'px-3 py-2 text-sm rounded-md'
             )}
           />
-          <Button type="submit" disabled={loading || !input.trim() || decisionLoading !== null} size={isLg ? 'md' : 'sm'}>
+          <Button type="submit" disabled={(mode !== 'vibe' && loading) || !input.trim() || decisionLoading !== null} size={isLg ? 'md' : 'sm'}>
             <Send className="w-4 h-4" />
           </Button>
         </form>

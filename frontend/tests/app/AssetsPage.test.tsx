@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'test-project-id' }),
   usePathname: () => '/projects/test-project-id/assets',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
 }));
 
 vi.mock('@/lib/api', () => ({

@@ -10,6 +10,7 @@ beforeAll(() => {
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'test-id' }),
   usePathname: () => '/projects/test-id/editor',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() }),
 }));
 
 vi.mock('@/lib/api', () => ({

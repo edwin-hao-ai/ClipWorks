@@ -12,19 +12,20 @@ import {
   extractUrl,
   makeProjectTitle,
 } from '@/lib/projectIntent';
-import { Paperclip, Sparkles, X } from 'lucide-react';
+import { Paperclip, Plus, Sparkles, X } from 'lucide-react';
 
 interface Props {
   onCreated?: () => void;
+  trigger?: (open: () => void) => React.ReactNode;
 }
 
-export function NewProjectDialog({ onCreated }: Props) {
+export function NewProjectDialog({ onCreated, trigger }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const promptRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -94,7 +95,16 @@ export function NewProjectDialog({ onCreated }: Props) {
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>新建项目</Button>
+      {trigger ? (
+        trigger(() => setOpen(true))
+      ) : (
+        <Button onClick={() => setOpen(true)}>
+          <span className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            新建项目
+          </span>
+        </Button>
+      )}
       {open && (
         <div
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn"
@@ -118,27 +128,48 @@ export function NewProjectDialog({ onCreated }: Props) {
               </button>
             </div>
 
-            <label className="block text-sm font-medium text-content-secondary mb-1.5">
-              你想做什么视频？
-            </label>
-            <textarea
-              ref={promptRef}
-              data-testid="new-project-prompt"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                // Enter 直接开聊，Shift+Enter 换行——和 Agent 对话窗口一致
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!submitting) submit();
-                }
-              }}
-              rows={2}
-              placeholder="例如：帮我做一个 30 秒的产品介绍视频，9:16，风格活泼，面向年轻人…"
-              className="w-full px-3 py-2.5 bg-background-base border border-border-default rounded-md text-content-primary placeholder:text-content-tertiary focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all resize-none"
-            />
+            <p className="text-sm text-content-secondary mb-4">
+              描述你的视频想法，AI 会自动规划并生成成片。
+            </p>
+            <div className="bg-background-base border border-border-default rounded-2xl p-2 flex items-center gap-2 shadow-glow focus-within:border-brand-500 transition-colors mb-3">
+              <input
+                ref={promptRef}
+                data-testid="new-project-prompt"
+                type="text"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter 直接开聊
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!submitting) submit();
+                  }
+                }}
+                placeholder="例如：帮我做一个 30 秒的产品介绍视频，9:16，风格活泼，面向年轻人…"
+                className="flex-1 min-w-0 bg-transparent px-4 py-3 text-base outline-none placeholder:text-content-tertiary text-content-primary"
+              />
+              <Button
+                data-testid="new-project-submit"
+                onClick={submit}
+                disabled={submitting || (!prompt.trim() && !file)}
+                size="lg"
+                className="shrink-0 px-3 sm:px-5"
+              >
+                {submitting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    创建中
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    开始创作
+                  </span>
+                )}
+              </Button>
+            </div>
 
-            <div className="flex flex-wrap gap-1.5 mt-2.5">
+            <div className="flex flex-wrap gap-1.5">
               {QUICK_PROMPTS.map((p) => (
                 <button
                   key={p}
@@ -197,26 +228,9 @@ export function NewProjectDialog({ onCreated }: Props) {
               </div>
             )}
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end mt-6">
               <Button variant="ghost" onClick={() => setOpen(false)} disabled={submitting}>
                 取消
-              </Button>
-              <Button
-                data-testid="new-project-submit"
-                onClick={submit}
-                disabled={submitting || (!prompt.trim() && !file)}
-              >
-                {submitting ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    创建中…
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    开始创作
-                  </span>
-                )}
               </Button>
             </div>
           </div>

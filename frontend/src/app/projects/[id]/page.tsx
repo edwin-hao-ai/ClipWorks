@@ -7,14 +7,16 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { AuthGuard } from '@/components/layout/AuthGuard';
 import { AgentChat } from '@/components/project/AgentChat';
+import { AgentCanvas } from '@/components/project/AgentCanvas';
+import { WorkflowStatusBar } from '@/components/project/WorkflowStatusBar';
+import { AutonomySelector } from '@/components/project/AutonomySelector';
 import { SceneCards } from '@/components/project/SceneCards';
 import { PreviewPlayer } from '@/components/project/PreviewPlayer';
 import { PropertyPanel } from '@/components/project/PropertyPanel';
 import { Pipeline } from '@/components/project/Pipeline';
 import { Button } from '@/components/ui/Button';
 import { Composition, Project, RenderJob, Scene } from '@/lib/types';
-import { api, API_URL, streamJsonLines } from '@/lib/api';
-import { PlanWizard } from '@/components/project/PlanWizard';
+import { api, API_URL } from '@/lib/api';
 import { Download, Film, RefreshCw, Scissors, Trash2, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { GenerationPanel } from '@/components/project/GenerationPanel';
@@ -101,8 +103,6 @@ export default function ProjectWorkspacePage() {
   const [deleting, setDeleting] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [creditBlocked, setCreditBlocked] = useState(false);
-  const [wizardGenerating, setWizardGenerating] = useState(false);
-  const [wizardActiveTab, setWizardActiveTab] = useState('script');
 
   const handleDelete = async () => {
     if (!confirmDelete) {
@@ -241,46 +241,6 @@ export default function ProjectWorkspacePage() {
       // 后端保存失败时回滚本地状态，避免用户看到“已保存”的假象。
       setProject((prev) => (prev ? { ...prev, agent_state: previousState } : null));
       setError(err instanceof Error ? err.message : '保存状态失败');
-    }
-  };
-
-  const handleRunStep = async (stepName: string, userInput?: string) => {
-    if (!project) return;
-    setWizardGenerating(true);
-    setError(null);
-    try {
-      for await (const chunk of streamJsonLines(
-        `/projects/${project.id}/agent/step/${stepName}`,
-        { user_input: userInput || '' }
-      )) {
-        if (chunk.type === 'error') {
-          setError(String(chunk.message));
-        }
-      }
-      const data = await api.get(`/projects/${project.id}/agent/state`);
-      setProject((prev) => (prev ? { ...prev, agent_state: data } : null));
-      await refreshProject();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '生成失败');
-    } finally {
-      setWizardGenerating(false);
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!project) return;
-    setWizardGenerating(true);
-    setError(null);
-    try {
-      await api.post(`/projects/${project.id}/agent/approve`, {});
-      setProject((prev) => (prev ? { ...prev, status: 'generating' } : null));
-      setTimeout(() => refreshProject(), 500);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : '确认生成失败';
-      if (msg.includes('402')) setCreditBlocked(true);
-      else setError(msg);
-    } finally {
-      setWizardGenerating(false);
     }
   };
 
@@ -676,27 +636,36 @@ export default function ProjectWorkspacePage() {
               </div>
             )}
             {isPlanning && (
-              <div className="max-w-4xl mx-auto h-full flex flex-col py-4">
-                <PlanWizard
-                  project={project}
-                  activeTab={wizardActiveTab}
-                  onActiveTabChange={setWizardActiveTab}
-                  onStateChange={handleWizardStateChange}
-                  onApprove={handleApprove}
-                  generating={wizardGenerating}
-                />
-                <div className="mt-4 flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleRunStep(wizardActiveTab)}
-                    disabled={wizardGenerating}
-                  >
-                    重新生成当前步骤
-                  </Button>
-                  <span className="text-xs text-content-tertiary">
-                    也可以直接在上方编辑后点「确认生成」。
-                  </span>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100dvh-3.5rem-2.5rem)] overflow-hidden">
+                <div className="lg:col-span-5 flex flex-col gap-4 min-h-0">
+                  <div className="flex items-center justify-between">
+                    <WorkflowStatusBar currentStep={project.agent_state?.step} />
+                    <AutonomySelector
+                      value={project.agent_state?.autonomy_level || 'confirm_each'}
+                      onChange={(level) =>
+                        handleWizardStateChange({
+                          ...(project.agent_state || {}),
+                          autonomy_level: level,
+                        } as NonNullable<Project['agent_state']>)
+                      }
+                    />
+                  </div>
+                  <AgentChat
+                    projectId={project.id}
+                    mode="vibe"
+                    agentState={project.agent_state}
+                    initialPrompt={initialPrompt}
+                    sourceUrl={project.source_url}
+                    onStatusChange={(s) => setProject((prev) => (prev ? { ...prev, status: s } : null))}
+                    onAgentStateChange={(next) =>
+                      setProject((prev) =>
+                        prev ? { ...prev, agent_state: { ...(prev.agent_state || {}), ...next } } : null
+                      )
+                    }
+                  />
+                </div>
+                <div className="lg:col-span-7 min-h-0 overflow-y-auto">
+                  <AgentCanvas agentState={project.agent_state} />
                 </div>
               </div>
             )}

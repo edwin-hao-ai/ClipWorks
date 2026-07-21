@@ -114,6 +114,43 @@ def test_update_state_can_overwrite_messages(auth_client, project):
     assert r.json()["messages"] == []
 
 
+def test_update_state_accepts_vibe_steps(auth_client, project):
+    """Vibe 工作流步骤可通过 /state 写入，不被 400 拒绝。"""
+    pid = project["id"]
+    for step in ("understand", "render", "done"):
+        r = auth_client.post(f"/projects/{pid}/agent/state", json={"state": {"step": step}})
+        assert r.status_code == 200, step
+        assert r.json()["step"] == step
+
+
+def test_update_state_preserves_autonomy_level_and_payload(auth_client, project):
+    """更新业务数据时不应丢失 autonomy_level 与 payload。"""
+    pid = project["id"]
+    r = auth_client.post(
+        f"/projects/{pid}/agent/state",
+        json={
+            "state": {
+                "step": "understand",
+                "autonomy_level": "confirm_each",
+                "payload": {"topic": "coffee"},
+            }
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["step"] == "understand"
+    assert data["autonomy_level"] == "confirm_each"
+    assert data["payload"] == {"topic": "coffee"}
+
+    # 后续部分更新应保留 autonomy_level/payload
+    r2 = auth_client.post(f"/projects/{pid}/agent/state", json={"state": {"script": {"title": "T"}}})
+    assert r2.status_code == 200
+    data2 = r2.json()
+    assert data2["script"]["title"] == "T"
+    assert data2["autonomy_level"] == "confirm_each"
+    assert data2["payload"] == {"topic": "coffee"}
+
+
 def test_update_state_invalid_payload(auth_client, project):
     r = auth_client.post(f"/projects/{project['id']}/agent/state", json={"state": "not-a-dict"})
     assert r.status_code == 422
