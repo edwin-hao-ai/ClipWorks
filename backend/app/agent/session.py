@@ -39,7 +39,8 @@ class AgentSession:
         self.step = loaded.get("step", "understand")
         self.payload = loaded.get("payload", {})
         self.messages = loaded.get("messages", [])
-        self.autonomy_level = loaded.get("autonomy_level", AutonomyLevel.CONFIRM_EACH)
+        # 默认 full_auto：确认模式目前无 UI 入口，确认 each 会导致默认死锁。
+        self.autonomy_level = loaded.get("autonomy_level", AutonomyLevel.FULL_AUTO)
         self.pending_user_confirmation = loaded.get("pending_user_confirmation", False)
 
     def to_dict(self) -> dict:
@@ -89,7 +90,7 @@ class AgentSession:
         self.append_message("user", user_message)
         self.mark_waiting(False)
 
-        max_actions = 10
+        max_actions = 30
         for i in range(max_actions):
             context = self._build_architect_context(project, user_message if i == 0 else "")
             action = orchestrator.decide_action(context)

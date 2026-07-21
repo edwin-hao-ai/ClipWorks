@@ -1,4 +1,5 @@
 import logging
+import threading
 from typing import Optional
 
 import json
@@ -21,6 +22,22 @@ from app.services.credits import check_credits
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/agent", tags=["agent"])
 
+# Vibe stream 项目级锁：防止同一项目的并发流读写 agent_state。
+_vibe_locks: dict[str, threading.Lock] = {}
+_vibe_locks_guard = threading.Lock()
+
+
+def _get_vibe_lock(project_id: str) -> threading.Lock:
+    """Return a threading.Lock scoped to the given project_id."""
+    lock = _vibe_locks.get(project_id)
+    if lock is None:
+        with _vibe_locks_guard:
+            lock = _vibe_locks.get(project_id)
+            if lock is None:
+                lock = threading.Lock()
+                _vibe_locks[project_id] = lock
+    return lock
+
 
 ALLOWED_STEPS = {
     "idle",
@@ -32,6 +49,10 @@ ALLOWED_STEPS = {
     "chatting",
     "pending_approval",
     "generating",
+    # Vibe Video 工作流步骤
+    "understand",
+    "render",
+    "done",
 }
 
 # Steps that may only be entered through dedicated endpoints, not via /state.
@@ -186,7 +207,8 @@ def update_agent_state(
 
     # 仅允许客户端编辑业务数据与当前步骤标记；generating_step 由 /step 端点内部管理，
     # 避免并发流执行期间被外部覆盖。messages 可编辑，用于 UI 预置对话历史。
-    for key in ["script", "assets", "scenes", "effects", "step"]:
+    # Vibe 工作流额外保留 autonomy_level 与 payload。
+    for key in ["script", "assets", "scenes", "effects", "step", "autonomy_level", "payload"]:
         if key in payload.state:
             state[key] = payload.state[key]
     if "messages" in payload.state:
@@ -368,21 +390,24 @@ def vibe_chat_stream(
     from app.agent.session import AgentSession
     from app.agent.orchestrator import Orchestrator
 
-    state = dict(project.agent_state or {})
-    session = AgentSession(project_id, state)
-    orchestrator = Orchestrator()
+    vibe_lock = _get_vibe_lock(project_id)
 
     def event_stream():
-        try:
-            for chunk in session.run(project, message, orchestrator, db=db, user=user):
-                yield chunk
-        except Exception as exc:
-            logger.exception("Vibe loop failed")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
-        finally:
-            project.agent_state = session.to_dict()
-            db.commit()
-            yield f"data: {json.dumps({'type': 'done', 'step': session.step}, ensure_ascii=False)}\n\n"
+        # 同一项目串行执行：防止并发流交错读取/写入 agent_state。
+        with vibe_lock:
+            state = dict(project.agent_state or {})
+            session = AgentSession(project_id, state)
+            orchestrator = Orchestrator()
+            try:
+                for chunk in session.run(project, message, orchestrator, db=db, user=user):
+                    yield chunk
+            except Exception as exc:
+                logger.exception("Vibe loop failed")
+                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
+            finally:
+                project.agent_state = session.to_dict()
+                db.commit()
+                yield f"data: {json.dumps({'type': 'done', 'step': session.step}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_stream(),

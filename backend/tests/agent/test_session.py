@@ -16,7 +16,8 @@ from app.agent.session import (
 def test_session_starts_in_understand_step():
     session = AgentSession(project_id="p1")
     assert session.step == "understand"
-    assert session.autonomy_level == AutonomyLevel.CONFIRM_EACH
+    # 默认 full_auto：确认模式目前无 UI 入口，默认 confirm_each 会死锁。
+    assert session.autonomy_level == AutonomyLevel.FULL_AUTO
     assert session.payload == {}
     assert session.messages == []
     assert session.pending_user_confirmation is False
@@ -49,7 +50,7 @@ def test_session_to_dict_round_trip():
     assert d["step"] == "assets"
     assert d["payload"] == {"key": "value"}
     assert d["messages"] == [{"role": "user", "content": "hi"}]
-    assert d["autonomy_level"] == AutonomyLevel.CONFIRM_EACH
+    assert d["autonomy_level"] == AutonomyLevel.FULL_AUTO
     assert d["pending_user_confirmation"] is True
 
 

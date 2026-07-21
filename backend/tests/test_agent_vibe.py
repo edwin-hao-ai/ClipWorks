@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -150,3 +152,41 @@ def test_vibe_stream_error_event(mock_orchestrator_cls, mock_session_cls, auth_c
     last = json.loads(lines[-1].replace("data: ", ""))
     assert last["type"] == "done"
     assert last["step"] == "understand"
+
+
+def test_vibe_stream_uses_project_level_lock():
+    """同一项目的 vibe stream 锁是同一实例，可串行化并发请求。"""
+    from app.routers.agent import _get_vibe_lock
+
+    lock_a = _get_vibe_lock("proj-1")
+    lock_b = _get_vibe_lock("proj-1")
+    lock_other = _get_vibe_lock("proj-2")
+
+    assert lock_a is lock_b
+    assert lock_a is not lock_other
+
+    # 验证确实是可重入的 threading.Lock 且能阻塞第二个线程
+    acquired_order = []
+    barrier = threading.Event()
+
+    def holder():
+        with lock_a:
+            acquired_order.append("first")
+            barrier.set()
+            # 短暂持有，让第二个线程尝试获取
+            time.sleep(0.3)
+        acquired_order.append("first-released")
+
+    def waiter():
+        barrier.wait()
+        with lock_a:
+            acquired_order.append("second")
+
+    t1 = threading.Thread(target=holder)
+    t2 = threading.Thread(target=waiter)
+    t1.start()
+    t2.start()
+    t1.join(timeout=2)
+    t2.join(timeout=2)
+
+    assert acquired_order == ["first", "first-released", "second"]
