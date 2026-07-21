@@ -56,6 +56,10 @@ class AgentPlanPayload(BaseModel):
     message: str
 
 
+class VibeChatPayload(BaseModel):
+    message: str
+
+
 class AgentApprovePayload(BaseModel):
     engine: Optional[str] = None
 
@@ -345,6 +349,45 @@ def chat_with_agent(
         "composition": build_composition_json(project.composition),
         "job_id": job.id if job else None,
     }
+
+
+@router.post("/vibe/stream")
+def vibe_chat_stream(
+    project_id: str,
+    payload: VibeChatPayload,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Chat-driven Vibe Video loop."""
+    project = _require_project(project_id, user, db)
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+
+    from app.agent.session import AgentSession
+    from app.agent.orchestrator import Orchestrator
+
+    state = dict(project.agent_state or {})
+    session = AgentSession(project_id, state)
+    orchestrator = Orchestrator()
+
+    def event_stream():
+        try:
+            for chunk in session.run(project, message, orchestrator):
+                yield chunk
+        except Exception as exc:
+            logger.exception("Vibe loop failed")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
+        finally:
+            project.agent_state = session.to_dict()
+            db.commit()
+            yield f"data: {json.dumps({'type': 'done', 'step': session.step}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
 
 
 @router.post("/chat/stream")
