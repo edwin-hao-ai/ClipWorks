@@ -7,6 +7,7 @@ from app.agent.session import (
     sse_text,
     sse_event,
     sse_done,
+    sse_error,
 )
 
 
@@ -88,3 +89,7 @@ def test_sse_helpers_produce_json_lines():
     assert sse_text("hello") == 'data: {"type": "token", "text": "hello"}\n\n'
     assert sse_event("artifact", {"kind": "script"}) == 'data: {"type": "artifact", "kind": "script"}\n\n'
     assert json.loads(sse_done().replace("data: ", "").strip()) == {"type": "done"}
+    assert json.loads(sse_error("oops").replace("data: ", "").strip()) == {
+        "type": "error",
+        "message": "oops",
+    }

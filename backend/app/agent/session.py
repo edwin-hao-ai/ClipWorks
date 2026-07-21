@@ -74,3 +74,8 @@ def sse_text(text: str) -> str:
 def sse_done() -> str:
     """Emit the terminal SSE event."""
     return sse_event("done", {})
+
+
+def sse_error(message: str) -> str:
+    """Emit an error SSE event."""
+    return sse_event("error", {"message": message})
