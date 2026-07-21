@@ -92,10 +92,39 @@ def test_orchestrator_unknown_action():
     session = AgentSession("p1")
     project = MagicMock()
     orch = Orchestrator()
-    action = AgentAction(action="render", target_step="video")
+    action = AgentAction(action="ask")
+    action.action = "fly"
     events = list(orch.run_action(session, project, action))
     assert '"type": "error"' in "".join(events)
-    assert "Unknown action render" in "".join(events)
+    assert "Unknown action fly" in "".join(events)
+
+
+def test_orchestrator_render_action_passes_db_and_user():
+    session = AgentSession("p1")
+    project = MagicMock()
+    db = MagicMock()
+    user = MagicMock()
+    orch = Orchestrator()
+    with orch._tool_mock("render", iter(['{"type": "done"}'])) as mock_tool:
+        action = AgentAction(action="render", response_to_user="Rendering")
+        list(orch.run_action(session, project, action, "render it", db=db, user=user))
+    mock_tool.assert_called_once()
+    call_args = mock_tool.call_args
+    assert call_args.args[0] is project
+    assert call_args.args[1] == session.to_dict()
+    assert call_args.args[2] == "render it"
+    assert call_args.args[3] is db
+    assert call_args.args[4] is user
+
+
+def test_orchestrator_render_action_missing_db_or_user():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="render", response_to_user="Rendering")
+    events = list(orch.run_action(session, project, action, "render it"))
+    assert '"type": "error"' in "".join(events)
+    assert "missing db or user" in "".join(events)
 
 
 def test_orchestrator_run_tool_missing_tool():

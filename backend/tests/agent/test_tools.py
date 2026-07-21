@@ -1,7 +1,7 @@
 from unittest.mock import patch, MagicMock
 
 from app.agent.llm import LLMUnavailableError
-from app.agent.tools import run_assets, run_script, run_understand
+from app.agent.tools import run_assets, run_render, run_script, run_understand
 
 
 def _project(**overrides):
@@ -107,3 +107,68 @@ def test_run_assets_uses_step_generator():
         mock_step.return_value = iter(['{"type": "done"}'])
         list(run_assets(project, state, ""))
     mock_step.assert_called_once_with("assets", project, state, "")
+
+
+def test_run_render_errors_without_db_or_user():
+    project = MagicMock()
+    state = {"payload": {}}
+    events = list(run_render(project, state, "render it"))
+    assert any('"type": "error"' in e and "missing db or user" in e for e in events)
+
+
+def test_run_render_errors_when_user_has_no_credits():
+    project = MagicMock()
+    state = {"payload": {}}
+    db = MagicMock()
+    user = MagicMock()
+    user.credits = 0
+    events = list(run_render(project, state, "render it", db=db, user=user))
+    assert any('"type": "error"' in e for e in events)
+    db.add.assert_not_called()
+
+
+def test_run_render_creates_job_and_enqueues_task():
+    project = MagicMock()
+    project.id = "proj-1"
+    project.title = "T"
+    project.target_format = "16:9"
+    project.target_duration = 30
+    state = {
+        "payload": {
+            "script": {
+                "title": "S",
+                "hook": "H",
+                "format": "16:9",
+                "duration": 30,
+            },
+            "scenes": {"scenes": [{"text": "scene1"}]},
+            "effects": {"effects": []},
+            "assets": {"needed": [{"description": "img1"}]},
+        }
+    }
+    db = MagicMock()
+    user = MagicMock()
+    user.credits = 5
+
+    def fake_refresh(job):
+        job.id = "job-1"
+
+    db.refresh.side_effect = fake_refresh
+
+    with patch("app.agent.tools.render_video_task") as mock_task:
+        events = list(run_render(project, state, "render it", db=db, user=user))
+
+    db.add.assert_called_once()
+    db.commit.assert_called()
+    db.refresh.assert_called_once()
+    job = db.add.call_args.args[0]
+    assert job.project_id == "proj-1"
+    assert job.status == "queued"
+    mock_task.delay.assert_called_once_with("job-1", "proj-1", None, None, mock_task.delay.call_args.args[4])
+    plan = mock_task.delay.call_args.args[4]
+    assert plan["title"] == "S"
+    assert plan["format"] == "16:9"
+    assert plan["assets_needed"] == ["img1"]
+    assert plan["scenes"][0].get("narration") == ""
+    assert any('"type": "job_created"' in e for e in events)
+    assert any('"type": "done"' in e for e in events)

@@ -63,7 +63,14 @@ class AgentSession:
     def mark_waiting(self, waiting: bool = True) -> None:
         self.pending_user_confirmation = waiting
 
-    def run(self, project, user_message: str, orchestrator: "Orchestrator") -> Iterator[str]:
+    def run(
+        self,
+        project,
+        user_message: str,
+        orchestrator: "Orchestrator",
+        db=None,
+        user=None,
+    ) -> Iterator[str]:
         """Run one turn of the agent session.
 
         Appends the user message, asks the orchestrator to decide the next
@@ -88,7 +95,7 @@ class AgentSession:
             self.append_message("assistant", action.response_to_user)
             return
 
-        yield from orchestrator.run_action(self, project, action, user_message)
+        yield from orchestrator.run_action(self, project, action, user_message, db=db, user=user)
 
         if action.action in ("advance", "render"):
             self.mark_waiting(True)

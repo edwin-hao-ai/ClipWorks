@@ -373,7 +373,7 @@ def vibe_chat_stream(
 
     def event_stream():
         try:
-            for chunk in session.run(project, message, orchestrator):
+            for chunk in session.run(project, message, orchestrator, db=db, user=user):
                 yield chunk
         except Exception as exc:
             logger.exception("Vibe loop failed")

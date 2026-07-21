@@ -113,6 +113,8 @@ class Orchestrator:
         project,
         action: AgentAction,
         user_input: str | None = None,
+        db=None,
+        user=None,
     ) -> Iterator[str]:
         if action.action == "ask":
             session.mark_waiting(True)
@@ -147,6 +149,15 @@ class Orchestrator:
                 return
             session.mark_waiting(False)
             yield from tool(project, session.to_dict(), user_input)
+            return
+
+        if action.action == "render":
+            tool = self.tools.get("render")
+            if not tool:
+                yield sse_event("error", {"message": "No tool for render"})
+                return
+            session.mark_waiting(False)
+            yield from tool(project, session.to_dict(), user_input, db, user)
             return
 
         if action.action == "reset":
