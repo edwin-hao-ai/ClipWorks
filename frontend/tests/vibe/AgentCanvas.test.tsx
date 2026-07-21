@@ -29,8 +29,6 @@ describe('AgentCanvas', () => {
             format: '9:16',
             audience: 'Gen Z',
             style: 'cyberpunk',
-            platform: 'TikTok',
-            cta: 'Buy now',
           },
         })}
       />
@@ -49,11 +47,7 @@ describe('AgentCanvas', () => {
           script: {
             title: 'Summer Sale',
             hook: '50% off today only',
-            roles: [{ name: '旁白', perspective: '品牌方' }],
             narrative_arc: 'Intro → Offer → CTA',
-            cta: 'Shop now',
-            duration: 15,
-            format: '1:1',
           },
         })}
       />
@@ -61,77 +55,11 @@ describe('AgentCanvas', () => {
     expect(screen.getByText('Summer Sale')).toBeInTheDocument();
     expect(screen.getByText('50% off today only')).toBeInTheDocument();
     expect(screen.getByText('Intro → Offer → CTA')).toBeInTheDocument();
-    expect(screen.getByText('旁白 · 品牌方')).toBeInTheDocument();
   });
 
-  it('renders assets list', () => {
-    render(
-      <AgentCanvas
-        agentState={state('assets', {
-          assets: {
-            needed: [
-              { description: 'Hero product shot', source: 'pexels' },
-              { description: 'Upbeat music', source: 'upload' },
-            ],
-          },
-        })}
-      />
-    );
-    expect(screen.getByText('Hero product shot')).toBeInTheDocument();
-    expect(screen.getByText('Upbeat music')).toBeInTheDocument();
-  });
-
-  it('renders timed scene list', () => {
-    render(
-      <AgentCanvas
-        agentState={state('scenes', {
-          scenes: {
-            scenes: [
-              {
-                id: 's1',
-                index: 0,
-                name: 'Open',
-                start_time: 0,
-                duration: 5,
-                description: 'Logo reveal',
-              },
-              {
-                id: 's2',
-                index: 1,
-                name: 'Product',
-                start_time: 5,
-                duration: 10,
-                description: 'Feature walkthrough',
-              },
-            ],
-          },
-        })}
-      />
-    );
-    expect(screen.getByText('Logo reveal')).toBeInTheDocument();
-    expect(screen.getByText('Feature walkthrough')).toBeInTheDocument();
-  });
-
-  it('renders effects keywords', () => {
-    render(
-      <AgentCanvas
-        agentState={state('effects', {
-          effects: {
-            effects: [
-              { scene_index: 0, visual_style: '霓虹', animation_keywords: ['glow', 'pan'] },
-            ],
-          },
-        })}
-      />
-    );
-    expect(screen.getByText('霓虹')).toBeInTheDocument();
-    expect(screen.getByText('glow')).toBeInTheDocument();
-    expect(screen.getByText('pan')).toBeInTheDocument();
-  });
-
-  it('renders render status / preview placeholder', () => {
-    render(<AgentCanvas agentState={state('render')} />);
-    expect(screen.getByText('渲染准备中…')).toBeInTheDocument();
+  it('renders generic fallback for unknown steps', () => {
+    render(<AgentCanvas agentState={state('assets')} />);
+    expect(screen.getByText('当前步骤：assets')).toBeInTheDocument();
   });
 
   it('falls back to understand when agentState is missing', () => {
