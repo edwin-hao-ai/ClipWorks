@@ -198,6 +198,16 @@ export function AgentChat({
   const [decisionLoading, setDecisionLoading] = useState<'approve' | 'reject' | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  // AbortController for the in-flight Vibe stream. A new message aborts the
+  // previous one, and unmounting aborts any active stream to avoid setState
+  // after teardown.
+  const vibeAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      vibeAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -389,6 +399,12 @@ export function AgentChat({
   };
 
   const handleVibeStream = async (text: string) => {
+    // Cancel any previous Vibe stream before starting a new one so that stale
+    // responses don't overwrite the current UI state.
+    vibeAbortRef.current?.abort();
+    const controller = new AbortController();
+    vibeAbortRef.current = controller;
+
     setLoading(true);
     setError(null);
     setStreamingText('');
@@ -399,7 +415,7 @@ export function AgentChat({
     try {
       for await (const event of api.stream(`/projects/${projectId}/agent/vibe/stream`, {
         message: text,
-      })) {
+      }, controller.signal)) {
         if (!event || typeof event !== 'object') continue;
 
         switch (event.type) {
@@ -475,18 +491,28 @@ export function AgentChat({
         setMessages((prev) => [...prev, { role: 'agent', text: currentReply }]);
       }
     } catch (err) {
+      // Intentional cancellation (new message or unmount) should not surface an
+      // error banner; only the active stream owns the loading/UI state.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Vibe 请求失败';
       setError(msg);
       setMessages((prev) => [...prev, { role: 'agent', text: `抱歉，Vibe 创作遇到问题：${msg}` }]);
     } finally {
-      setLoading(false);
-      setStreamingText('');
+      // Only clear loading if this stream is still the current one. If a newer
+      // message started, it has already taken over the UI state.
+      if (vibeAbortRef.current === controller) {
+        setLoading(false);
+        setStreamingText('');
+        vibeAbortRef.current = null;
+      }
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || (mode !== 'vibe' && loading)) return;
 
     if (mode === 'plan') {
       if (rejectMode) {
@@ -814,7 +840,7 @@ export function AgentChat({
                   sendModification(p);
                 }
               }}
-              disabled={loading || decisionLoading !== null}
+              disabled={(mode !== 'vibe' && loading) || decisionLoading !== null}
               className={clsx(
                 'rounded-full bg-background-elevated border border-border-subtle text-content-secondary hover:text-content-primary hover:border-border-default transition-colors disabled:opacity-50',
                 isLg ? 'text-sm px-3 py-1.5' : 'text-xs px-2 py-1'
@@ -840,13 +866,13 @@ export function AgentChat({
                 ? '描述你的 Vibe 视频想法…'
                 : '输入创作或修改指令…'
             }
-            disabled={loading || decisionLoading !== null}
+            disabled={(mode !== 'vibe' && loading) || decisionLoading !== null}
             className={clsx(
               'flex-1 min-w-0 bg-background-elevated border border-border-subtle text-content-primary placeholder-content-tertiary focus:outline-none focus:border-brand-500 disabled:opacity-50',
               isLg ? 'px-4 py-3 text-base rounded-lg' : 'px-3 py-2 text-sm rounded-md'
             )}
           />
-          <Button type="submit" disabled={loading || !input.trim() || decisionLoading !== null} size={isLg ? 'md' : 'sm'}>
+          <Button type="submit" disabled={(mode !== 'vibe' && loading) || !input.trim() || decisionLoading !== null} size={isLg ? 'md' : 'sm'}>
             <Send className="w-4 h-4" />
           </Button>
         </form>

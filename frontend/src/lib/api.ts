@@ -23,12 +23,13 @@ async function request(path: string, options: RequestInit = {}) {
   return res.json();
 }
 
-async function* streamPost(path: string, body?: unknown) {
+async function* streamPost(path: string, body?: unknown, signal?: AbortSignal) {
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => `${res.status}`);
