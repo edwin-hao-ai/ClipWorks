@@ -173,10 +173,11 @@ describe('AgentChat vibe mode', () => {
 
   it('calls onAgentStateChange with artifact payload', async () => {
     const onAgentStateChange = vi.fn();
-    const artifact = { kind: 'understand', data: { summary: 'A promo' } };
+    const kind = 'understand';
+    const data = { summary: 'A promo' };
 
     (api.stream as ReturnType<typeof vi.fn>).mockImplementation((_path, _body, signal) =>
-      makeAsyncIterator([{ type: 'artifact', artifact }, { type: 'done' }], signal)
+      makeAsyncIterator([{ type: 'artifact', kind, data }, { type: 'done' }], signal)
     );
 
     render(

@@ -112,8 +112,9 @@ class AgentSession:
             # Enforce autonomy level for advance/render: these transition the
             # workflow forward, so they may require user confirmation depending
             # on the configured level. run_tool/revise are executions of the
-            # current step and run immediately.
-            if action.action in ("advance", "render") and action.requires_confirmation and not self._should_auto_confirm(action):
+            # current step and run immediately.  Confirmation is decided only
+            # by the configured autonomy level, not by the LLM's flag.
+            if action.action in ("advance", "render") and not self._should_auto_confirm(action):
                 self.mark_waiting(True)
                 yield sse_event("question", {"text": action.confirmation_message or action.response_to_user})
                 self.append_message("assistant", action.response_to_user)

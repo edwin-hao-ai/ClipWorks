@@ -247,14 +247,9 @@ export type VibeEventType =
   | 'error'
   | 'done';
 
-export interface VibeArtifact {
-  kind: 'understand' | 'script' | 'assets' | 'scenes' | 'effects' | 'render';
-  data: unknown;
-}
-
 export type VibeEvent =
   | { type: 'token'; text: string }
-  | { type: 'artifact'; artifact: VibeArtifact }
+  | { type: 'artifact'; kind: 'understand' | 'script' | 'assets' | 'scenes' | 'effects' | 'render'; data: unknown }
   | { type: 'question'; text: string; options?: string[] }
   | { type: 'progress'; step: string; progress: number; message?: string }
   | { type: 'error'; message: string; code?: string }

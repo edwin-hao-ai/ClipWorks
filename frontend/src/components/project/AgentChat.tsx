@@ -434,6 +434,9 @@ export function AgentChat({
             const question = (event as { text?: string }).text;
             if (typeof question === 'string') {
               setMessages((prev) => [...prev, { role: 'agent', text: question }]);
+              // The same text was also streamed as tokens; clear the
+              // accumulator so it isn't appended again at stream end.
+              currentReply = '';
             }
             break;
           }
@@ -442,29 +445,30 @@ export function AgentChat({
             break;
           }
           case 'artifact': {
-            const artifact = (event as { artifact?: { kind?: string; data?: unknown } }).artifact;
-            if (artifact?.kind) {
+            const kind = (event as { kind?: string }).kind;
+            const data = (event as { data?: unknown }).data;
+            if (kind) {
               const payload: NonNullable<AgentState['payload']> = {
                 ...(agentStateRef.current?.payload || {}),
               };
-              switch (artifact.kind) {
+              switch (kind) {
                 case 'understand':
-                  payload.understand = artifact.data as NonNullable<AgentState['payload']>['understand'];
+                  payload.understand = data as NonNullable<AgentState['payload']>['understand'];
                   break;
                 case 'script':
-                  payload.script = artifact.data as NonNullable<AgentState['payload']>['script'];
+                  payload.script = data as NonNullable<AgentState['payload']>['script'];
                   break;
                 case 'assets':
-                  payload.assets = artifact.data as NonNullable<AgentState['payload']>['assets'];
+                  payload.assets = data as NonNullable<AgentState['payload']>['assets'];
                   break;
                 case 'scenes':
-                  payload.scenes = artifact.data as NonNullable<AgentState['payload']>['scenes'];
+                  payload.scenes = data as NonNullable<AgentState['payload']>['scenes'];
                   break;
                 case 'effects':
-                  payload.effects = artifact.data as NonNullable<AgentState['payload']>['effects'];
+                  payload.effects = data as NonNullable<AgentState['payload']>['effects'];
                   break;
               }
-              emitAgentState({ step: artifact.kind as AgentState['step'], payload });
+              emitAgentState({ step: kind as AgentState['step'], payload });
             }
             break;
           }

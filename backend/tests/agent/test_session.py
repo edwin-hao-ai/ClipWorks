@@ -175,3 +175,83 @@ def test_build_architect_context_includes_project_and_payload():
     assert "Current payload:" in context
     assert '"title": "Hello"' in context
     assert "User message: hi" in context
+
+
+def _make_project():
+    project = MagicMock()
+    project.title = "T"
+    project.source_url = None
+    project.target_format = "16:9"
+    project.target_duration = 30
+    return project
+
+
+def test_confirm_each_ignores_llm_requires_confirmation_flag_for_advance():
+    """A misbehaving LLM cannot bypass confirmation by setting requires_confirmation=False."""
+    session = AgentSession("p1", state={"autonomy_level": "confirm_each"})
+    project = _make_project()
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: AgentAction(
+        action="advance",
+        target_step="script",
+        response_to_user="Moving on",
+        requires_confirmation=False,
+    )
+
+    events = list(session.run(project, "hi", orch))
+    assert any('"type": "question"' in e for e in events)
+    assert session.step == "understand"
+    assert session.pending_user_confirmation is True
+
+
+def test_confirm_each_ignores_llm_requires_confirmation_flag_for_render():
+    session = AgentSession("p1", state={"autonomy_level": "confirm_each"})
+    project = _make_project()
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: AgentAction(
+        action="render",
+        response_to_user="Rendering",
+        requires_confirmation=False,
+    )
+
+    events = list(session.run(project, "hi", orch))
+    assert any('"type": "question"' in e for e in events)
+    assert session.step == "understand"
+    assert session.pending_user_confirmation is True
+
+
+def test_confirm_render_only_asks_render_even_when_llm_flag_is_false():
+    session = AgentSession("p1", state={"autonomy_level": "confirm_render_only"})
+    project = _make_project()
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: AgentAction(
+        action="render",
+        response_to_user="Rendering",
+        requires_confirmation=False,
+    )
+
+    events = list(session.run(project, "hi", orch))
+    assert any('"type": "question"' in e for e in events)
+    assert session.step == "understand"
+    assert session.pending_user_confirmation is True
+
+
+def test_full_auto_advance_runs_without_confirmation():
+    session = AgentSession("p1", state={"autonomy_level": "full_auto"})
+    project = _make_project()
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: AgentAction(
+        action="advance",
+        target_step="script",
+        response_to_user="Moving on",
+        requires_confirmation=True,
+    )
+
+    events = list(session.run(project, "hi", orch))
+    assert not any('"type": "question"' in e for e in events)
+    assert session.step == "script"
+    assert session.messages[-1] == {"role": "assistant", "content": "Moving on"}

@@ -83,7 +83,7 @@ export function AgentCanvas({ agentState }: { agentState?: AgentState }) {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium text-content-primary">场景 {idx + 1}</span>
                   <span className="text-xs text-content-tertiary">
-                    {scene.start_time != null ? `${scene.start_time}s` : ''}
+                    {scene.start != null ? `${scene.start}s` : scene.start_time != null ? `${scene.start_time}s` : ''}
                     {scene.duration != null ? ` · ${scene.duration} 秒` : ''}
                   </span>
                 </div>
