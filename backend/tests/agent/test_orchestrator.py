@@ -1,4 +1,122 @@
-from app.agent.orchestrator import parse_action_json, AgentAction
+from unittest.mock import MagicMock
+
+from app.agent.orchestrator import parse_action_json, AgentAction, Orchestrator
+from app.agent.session import AgentSession
+
+
+def test_orchestrator_runs_understand_tool():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    with orch._tool_mock("understand", iter(['{"type": "done"}'])) as mock_tool:
+        action = AgentAction(action="run_tool", target_step="understand", response_to_user="OK")
+        list(orch.run_action(session, project, action, "hello"))
+    mock_tool.assert_called_once()
+    assert session.step == "understand"
+
+
+def test_orchestrator_ask_action():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(
+        action="ask",
+        response_to_user="Need more info",
+        confirmation_message="Please confirm",
+    )
+    events = list(orch.run_action(session, project, action))
+    assert session.pending_user_confirmation is True
+    assert any('"type": "token"' in e and '"text": "Need more info"' in e for e in events)
+    assert any('"type": "question"' in e and '"text": "Please confirm"' in e for e in events)
+
+
+def test_orchestrator_advance_action():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="advance", target_step="script", response_to_user="Moving on")
+    events = list(orch.run_action(session, project, action))
+    assert session.step == "script"
+    assert session.pending_user_confirmation is True
+    assert any('"type": "token"' in e and '"text": "Moving on"' in e for e in events)
+
+
+def test_orchestrator_advance_requires_target_step():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="advance", response_to_user="No target")
+    events = list(orch.run_action(session, project, action))
+    assert '"type": "error"' in "".join(events)
+    assert "target_step" in "".join(events)
+
+
+def test_orchestrator_revise_uses_current_step():
+    session = AgentSession("p1")
+    session.set_step("script")
+    project = MagicMock()
+    orch = Orchestrator()
+    with orch._tool_mock("script", iter(['{"type": "done"}'])) as mock_tool:
+        action = AgentAction(action="revise", response_to_user="Revising")
+        list(orch.run_action(session, project, action, "make it shorter"))
+    mock_tool.assert_called_once()
+    call_args = mock_tool.call_args
+    assert call_args.args[0] is project
+    assert call_args.args[2] == "make it shorter"
+
+
+def test_orchestrator_reset_action():
+    session = AgentSession("p1")
+    session.set_step("script")
+    session.set_payload("script", {"title": "T"})
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="reset", response_to_user="Restarting")
+    events = list(orch.run_action(session, project, action))
+    assert session.step == "understand"
+    assert session.payload == {}
+    assert session.pending_user_confirmation is True
+    assert any('"type": "token"' in e and '"text": "Restarting"' in e for e in events)
+
+
+def test_orchestrator_reset_uses_default_message():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="reset")
+    events = list(orch.run_action(session, project, action))
+    assert any('"type": "token"' in e and "重新开始" in e for e in events)
+
+
+def test_orchestrator_unknown_action():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="render", target_step="video")
+    events = list(orch.run_action(session, project, action))
+    assert '"type": "error"' in "".join(events)
+    assert "Unknown action render" in "".join(events)
+
+
+def test_orchestrator_run_tool_missing_tool():
+    session = AgentSession("p1")
+    project = MagicMock()
+    orch = Orchestrator()
+    action = AgentAction(action="run_tool", target_step="nonexistent")
+    events = list(orch.run_action(session, project, action))
+    assert '"type": "error"' in "".join(events)
+    assert "No tool for step nonexistent" in "".join(events)
+
+
+def test_orchestrator_run_tool_defaults_to_session_step():
+    session = AgentSession("p1")
+    session.set_step("script")
+    project = MagicMock()
+    orch = Orchestrator()
+    with orch._tool_mock("script", iter(['{"type": "done"}'])) as mock_tool:
+        action = AgentAction(action="run_tool", response_to_user="OK")
+        list(orch.run_action(session, project, action, "hello"))
+    mock_tool.assert_called_once()
 
 
 def test_parse_valid_action_json():
