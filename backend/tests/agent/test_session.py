@@ -1,5 +1,7 @@
 import json
+from unittest.mock import MagicMock
 
+from app.agent.orchestrator import AgentAction, Orchestrator
 from app.agent.session import (
     AgentSession,
     AutonomyLevel,
@@ -93,3 +95,82 @@ def test_sse_helpers_produce_json_lines():
         "type": "error",
         "message": "oops",
     }
+
+
+def test_run_loop_asks_when_action_is_ask():
+    session = AgentSession("p1")
+    project = MagicMock()
+    project.title = "T"
+    project.source_url = None
+    project.target_format = "16:9"
+    project.target_duration = 30
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: AgentAction(
+        action="ask",
+        response_to_user="What format?",
+        confirmation_message="What format?",
+    )
+
+    events = list(session.run(project, "hi", orch))
+    assert any('"type": "question"' in e for e in events)
+    assert session.pending_user_confirmation is True
+    assert session.messages[-1] == {"role": "assistant", "content": "What format?"}
+
+
+def test_run_loop_fallback_when_decide_returns_none():
+    session = AgentSession("p1")
+    project = MagicMock()
+    project.title = "T"
+    project.source_url = None
+    project.target_format = "16:9"
+    project.target_duration = 30
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: None
+
+    events = list(session.run(project, "hi", orch))
+    assert any("我没理解你的意思" in e for e in events)
+    assert session.pending_user_confirmation is True
+
+
+def test_run_loop_runs_tool_and_appends_assistant_message():
+    session = AgentSession("p1")
+    project = MagicMock()
+    project.title = "T"
+    project.source_url = None
+    project.target_format = "16:9"
+    project.target_duration = 30
+
+    orch = Orchestrator()
+    orch.decide_action = lambda context: AgentAction(
+        action="run_tool",
+        target_step="understand",
+        response_to_user="OK",
+    )
+
+    with orch._tool_mock("understand", iter([sse_done()])):
+        events = list(session.run(project, "make a video", orch))
+
+    assert any('"type": "done"' in e for e in events)
+    assert session.messages[-1] == {"role": "assistant", "content": "OK"}
+
+
+def test_build_architect_context_includes_project_and_payload():
+    session = AgentSession("p1")
+    session.set_payload("script", {"title": "Hello"})
+    project = MagicMock()
+    project.title = "T"
+    project.source_url = "http://example.com"
+    project.target_format = "9:16"
+    project.target_duration = 15
+
+    context = session._build_architect_context(project, "hi")
+    assert "Current step: understand" in context
+    assert "Project title: T" in context
+    assert "Target format: 9:16" in context
+    assert "Target duration: 15s" in context
+    assert "Source URL: http://example.com" in context
+    assert "Current payload:" in context
+    assert '"title": "Hello"' in context
+    assert "User message: hi" in context

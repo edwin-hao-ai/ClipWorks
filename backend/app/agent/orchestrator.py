@@ -7,8 +7,11 @@ from unittest.mock import MagicMock
 
 from pydantic import BaseModel, Field
 
+from app.agent.llm import KimiClient
+from app.agent.prompts import ARCHITECT_SYSTEM_PROMPT
 from app.agent.session import AgentSession, sse_event, sse_text
 from app.agent.tools import run_understand, run_script
+from app.config import KIMI_PLANNING_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,26 @@ class Orchestrator:
             "understand": run_understand,
             "script": run_script,
         }
+        self.client = KimiClient(model=KIMI_PLANNING_MODEL)
+
+    def decide_action(self, context: str) -> Optional[AgentAction]:
+        """Ask the architect LLM to decide the next action and parse it."""
+        full_text = ""
+        try:
+            for chunk in self.client.chat_completion_stream(
+                ARCHITECT_SYSTEM_PROMPT,
+                [{"role": "user", "content": context}],
+                temperature=0.7,
+            ):
+                full_text += chunk
+        except Exception as exc:
+            logger.warning("Architect LLM failed: %s", exc)
+            return AgentAction(
+                action="ask",
+                response_to_user="我没听清，能再说一下你的需求吗？",
+                confirmation_message="能再说一下你的需求吗？",
+            )
+        return parse_action_json(full_text)
 
     def _tool_mock(self, tool_name: str, return_value):
         """Test helper context manager that replaces a single tool with a mock."""
