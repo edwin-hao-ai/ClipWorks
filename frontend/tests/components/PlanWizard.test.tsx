@@ -48,7 +48,7 @@ describe('PlanWizard', () => {
       ...baseProject,
       agent_state: {
         step: 'script',
-        script: baseProject.agent_state.script,
+        script: baseProject.agent_state!.script,
         assets: {
           needed: [
             { type: 'image', description: '主视觉图', query: 'product hero', count: 2 },
@@ -77,7 +77,7 @@ describe('PlanWizard', () => {
       ...baseProject,
       agent_state: {
         step: 'scenes',
-        script: baseProject.agent_state.script,
+        script: baseProject.agent_state!.script,
         assets: { needed: [] },
         scenes: {
           scenes: [
@@ -106,7 +106,7 @@ describe('PlanWizard', () => {
       ...baseProject,
       agent_state: {
         step: 'effects',
-        script: baseProject.agent_state.script,
+        script: baseProject.agent_state!.script,
         assets: { needed: [] },
         scenes: {
           scenes: [
@@ -139,7 +139,7 @@ describe('PlanWizard', () => {
       ...baseProject,
       agent_state: {
         step: 'assets',
-        script: baseProject.agent_state.script,
+        script: baseProject.agent_state!.script,
         assets: {
           needed: [
             { type: 'image', description: '主视觉图', query: 'product hero', count: 2 },

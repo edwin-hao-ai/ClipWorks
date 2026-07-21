@@ -63,6 +63,14 @@ class AgentSession:
     def mark_waiting(self, waiting: bool = True) -> None:
         self.pending_user_confirmation = waiting
 
+    def _should_auto_confirm(self, action: "AgentAction") -> bool:
+        """Return True when the configured autonomy level allows skipping confirmation."""
+        if self.autonomy_level == AutonomyLevel.FULL_AUTO:
+            return True
+        if self.autonomy_level == AutonomyLevel.CONFIRM_RENDER_ONLY and action.action != "render":
+            return True
+        return False
+
     def run(
         self,
         project,
@@ -71,36 +79,72 @@ class AgentSession:
         db=None,
         user=None,
     ) -> Iterator[str]:
-        """Run one turn of the agent session.
+        """Run the agent session loop.
 
-        Appends the user message, asks the orchestrator to decide the next
-        action, yields SSE events for the response, and updates session state.
+        Appends the user message, then repeatedly asks the orchestrator to
+        decide the next action, yielding SSE events and updating session state.
+        The loop stops when a question/confirmation is needed, the workflow
+        reaches the render step, or an iteration limit is hit.
         """
         self.append_message("user", user_message)
         self.mark_waiting(False)
 
-        context = self._build_architect_context(project, user_message)
-        action = orchestrator.decide_action(context)
-        if not action:
-            self.mark_waiting(True)
-            yield sse_text("我没理解你的意思，能再说详细一点吗？")
-            return
+        max_actions = 10
+        for i in range(max_actions):
+            context = self._build_architect_context(project, user_message if i == 0 else "")
+            action = orchestrator.decide_action(context)
+            if not action:
+                self.mark_waiting(True)
+                yield sse_text("我没理解你的意思，能再说详细一点吗？")
+                return
 
-        if action.response_to_user:
-            yield sse_text(action.response_to_user)
+            if action.response_to_user:
+                yield sse_text(action.response_to_user)
 
-        if action.action == "ask":
-            self.mark_waiting(True)
-            yield sse_event("question", {"text": action.confirmation_message or action.response_to_user})
+            # "ask" always waits for the user, even in full_auto (we rely on the
+            # prompt to tell the architect not to ask when autonomous).
+            if action.action == "ask":
+                self.mark_waiting(True)
+                yield sse_event("question", {"text": action.confirmation_message or action.response_to_user})
+                self.append_message("assistant", action.response_to_user)
+                return
+
+            # Enforce autonomy level for advance/render: these transition the
+            # workflow forward, so they may require user confirmation depending
+            # on the configured level. run_tool/revise are executions of the
+            # current step and run immediately.
+            if action.action in ("advance", "render") and action.requires_confirmation and not self._should_auto_confirm(action):
+                self.mark_waiting(True)
+                yield sse_event("question", {"text": action.confirmation_message or action.response_to_user})
+                self.append_message("assistant", action.response_to_user)
+                return
+
+            yield from orchestrator.run_action(self, project, action, user_message if i == 0 else "", db=db, user=user)
             self.append_message("assistant", action.response_to_user)
+
+            if action.action == "render":
+                self.set_step("done")
+                return
+
+            if action.action == "reset":
+                return
+
+            # After advancing/running a tool, continue automatically when the
+            # autonomy level permits; otherwise wait for the user to confirm.
+            if self.autonomy_level == AutonomyLevel.FULL_AUTO:
+                self.mark_waiting(False)
+                continue
+
+            if self.autonomy_level == AutonomyLevel.CONFIRM_RENDER_ONLY and self.step != "render":
+                self.mark_waiting(False)
+                continue
+
+            # confirm_each: stay waiting after producing output.
+            self.mark_waiting(True)
             return
 
-        yield from orchestrator.run_action(self, project, action, user_message, db=db, user=user)
-
-        if action.action in ("advance", "render"):
-            self.mark_waiting(True)
-
-        self.append_message("assistant", action.response_to_user)
+        # Safety cap: if we somehow exhaust the loop, stop waiting for input.
+        self.mark_waiting(True)
 
     def _build_architect_context(self, project, user_message: str) -> str:
         """Build the context string fed to the architect LLM."""

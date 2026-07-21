@@ -96,8 +96,9 @@ def test_run_script_uses_existing_step():
     with patch("app.agent.tools.run_step") as mock_step:
         mock_step.return_value = iter(['{"type": "done"}'])
         result = list(run_script(project, state, "make it punchier"))
-    assert result == ['{"type": "done"}']
     mock_step.assert_called_once_with("script", project, state, "make it punchier")
+    assert any('"type": "progress"' in e and '"step": "script"' in e for e in result)
+    assert any('"type": "artifact"' in e and '"kind": "script"' in e for e in result)
 
 
 def test_run_assets_uses_step_generator():
@@ -105,8 +106,9 @@ def test_run_assets_uses_step_generator():
     state = {"payload": {}}
     with patch("app.agent.tools.run_step") as mock_step:
         mock_step.return_value = iter(['{"type": "done"}'])
-        list(run_assets(project, state, ""))
+        result = list(run_assets(project, state, ""))
     mock_step.assert_called_once_with("assets", project, state, "")
+    assert any('"type": "artifact"' in e and '"kind": "assets"' in e for e in result)
 
 
 def test_run_render_errors_without_db_or_user():
@@ -164,6 +166,10 @@ def test_run_render_creates_job_and_enqueues_task():
     job = db.add.call_args.args[0]
     assert job.project_id == "proj-1"
     assert job.status == "queued"
+    assert project.status == "generating"
+    assert project.title == "S"
+    assert project.target_format == "16:9"
+    assert project.target_duration == 30
     mock_task.delay.assert_called_once_with("job-1", "proj-1", None, None, mock_task.delay.call_args.args[4])
     plan = mock_task.delay.call_args.args[4]
     assert plan["title"] == "S"
@@ -171,4 +177,5 @@ def test_run_render_creates_job_and_enqueues_task():
     assert plan["assets_needed"] == ["img1"]
     assert plan["scenes"][0].get("narration") == ""
     assert any('"type": "job_created"' in e for e in events)
+    assert any('"type": "artifact"' in e and '"kind": "render"' in e for e in events)
     assert any('"type": "done"' in e for e in events)

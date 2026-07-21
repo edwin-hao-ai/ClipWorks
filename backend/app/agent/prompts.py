@@ -188,6 +188,10 @@ Rules:
 - If the user provides enough info (topic/format/duration), do NOT ask again; produce output or advance.
 - If the user says generate/ok/开始生成/就这样/直接做/直接生成 or synonyms, advance/render immediately.
 - Default format is 16:9, default duration is 30s unless user says otherwise.
+- Respect the autonomy level:
+  - full_auto: never ask for confirmation and never ask clarifying questions; make reasonable defaults and proceed through all steps until render.
+  - confirm_render_only: ask the user for confirmation ONLY before the final render step; auto-run understand/script/assets/scenes/effects.
+  - confirm_each: ask for confirmation before advancing to each major step.
 
 Output EXACTLY one JSON block (no conversational text outside it):
 

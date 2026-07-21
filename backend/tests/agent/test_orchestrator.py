@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.agent.orchestrator import parse_action_json, AgentAction, Orchestrator
 from app.agent.session import AgentSession
@@ -8,7 +8,8 @@ def test_orchestrator_runs_understand_tool():
     session = AgentSession("p1")
     project = MagicMock()
     orch = Orchestrator()
-    with orch._tool_mock("understand", iter(['{"type": "done"}'])) as mock_tool:
+    mock_tool = MagicMock(return_value=iter(['{"type": "done"}']))
+    with patch.dict(orch.tools, {"understand": mock_tool}):
         action = AgentAction(action="run_tool", target_step="understand", response_to_user="OK")
         list(orch.run_action(session, project, action, "hello"))
     mock_tool.assert_called_once()
@@ -56,7 +57,8 @@ def test_orchestrator_revise_uses_current_step():
     session.set_step("script")
     project = MagicMock()
     orch = Orchestrator()
-    with orch._tool_mock("script", iter(['{"type": "done"}'])) as mock_tool:
+    mock_tool = MagicMock(return_value=iter(['{"type": "done"}']))
+    with patch.dict(orch.tools, {"script": mock_tool}):
         action = AgentAction(action="revise", response_to_user="Revising")
         list(orch.run_action(session, project, action, "make it shorter"))
     mock_tool.assert_called_once()
@@ -105,7 +107,8 @@ def test_orchestrator_render_action_passes_db_and_user():
     db = MagicMock()
     user = MagicMock()
     orch = Orchestrator()
-    with orch._tool_mock("render", iter(['{"type": "done"}'])) as mock_tool:
+    mock_tool = MagicMock(return_value=iter(['{"type": "done"}']))
+    with patch.dict(orch.tools, {"render": mock_tool}):
         action = AgentAction(action="render", response_to_user="Rendering")
         list(orch.run_action(session, project, action, "render it", db=db, user=user))
     mock_tool.assert_called_once()
@@ -142,7 +145,8 @@ def test_orchestrator_run_tool_defaults_to_session_step():
     session.set_step("script")
     project = MagicMock()
     orch = Orchestrator()
-    with orch._tool_mock("script", iter(['{"type": "done"}'])) as mock_tool:
+    mock_tool = MagicMock(return_value=iter(['{"type": "done"}']))
+    with patch.dict(orch.tools, {"script": mock_tool}):
         action = AgentAction(action="run_tool", response_to_user="OK")
         list(orch.run_action(session, project, action, "hello"))
     mock_tool.assert_called_once()

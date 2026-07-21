@@ -96,8 +96,8 @@ describe('AgentChat vibe mode', () => {
     (api.stream as ReturnType<typeof vi.fn>).mockImplementation((_path, _body, signal) =>
       makeAsyncIterator(
         [
-          { type: 'token', token: 'Hello' },
-          { type: 'token', token: ' world' },
+          { type: 'token', text: 'Hello' },
+          { type: 'token', text: ' world' },
           { type: 'done' },
         ],
         signal
@@ -117,7 +117,7 @@ describe('AgentChat vibe mode', () => {
 
   it('adds question events as agent messages', async () => {
     (api.stream as ReturnType<typeof vi.fn>).mockImplementation((_path, _body, signal) =>
-      makeAsyncIterator([{ type: 'question', question: 'Which format?' }, { type: 'done' }], signal)
+      makeAsyncIterator([{ type: 'question', text: 'Which format?' }, { type: 'done' }], signal)
     );
 
     render(<AgentChat projectId="p1" mode="vibe" onStatusChange={() => {}} />);
@@ -128,6 +128,46 @@ describe('AgentChat vibe mode', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Which format?')).toBeInTheDocument();
+    });
+  });
+
+  it('auto-sends initialPrompt in vibe mode', async () => {
+    (api.stream as ReturnType<typeof vi.fn>).mockImplementation((_path, _body, signal) =>
+      makeAsyncIterator([{ type: 'done' }], signal)
+    );
+
+    render(
+      <AgentChat
+        projectId="p1"
+        mode="vibe"
+        initialPrompt="make a vibe video"
+        onStatusChange={() => {}}
+      />
+    );
+
+    await waitFor(() => {
+      expect(api.stream).toHaveBeenCalledWith(
+        '/projects/p1/agent/vibe/stream',
+        { message: 'make a vibe video' },
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
+  it('calls onStatusChange generating on job_created event', async () => {
+    const onStatusChange = vi.fn();
+    (api.stream as ReturnType<typeof vi.fn>).mockImplementation((_path, _body, signal) =>
+      makeAsyncIterator([{ type: 'job_created', job_id: 'job-1', status: 'queued' }, { type: 'done' }], signal)
+    );
+
+    render(<AgentChat projectId="p1" mode="vibe" onStatusChange={onStatusChange} />);
+
+    const input = screen.getByPlaceholderText('描述你的 Vibe 视频想法…');
+    fireEvent.change(input, { target: { value: 'test' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() => {
+      expect(onStatusChange).toHaveBeenCalledWith('generating');
     });
   });
 

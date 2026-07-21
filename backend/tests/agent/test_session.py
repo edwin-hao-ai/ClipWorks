@@ -1,5 +1,5 @@
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from app.agent.orchestrator import AgentAction, Orchestrator
 from app.agent.session import (
@@ -149,7 +149,8 @@ def test_run_loop_runs_tool_and_appends_assistant_message():
         response_to_user="OK",
     )
 
-    with orch._tool_mock("understand", iter([sse_done()])):
+    mock_tool = MagicMock(return_value=iter([sse_done()]))
+    with patch.dict(orch.tools, {"understand": mock_tool}):
         events = list(session.run(project, "make a video", orch))
 
     assert any('"type": "done"' in e for e in events)

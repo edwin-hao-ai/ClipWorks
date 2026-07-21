@@ -17,7 +17,8 @@ export type AgentStep =
   | 'approved'
   | 'chatting'
   | 'pending_approval'
-  | 'generating';
+  | 'generating'
+  | 'done';
 
 export interface AgentScript {
   title: string;
@@ -124,6 +125,7 @@ export interface AgentState {
     assets?: AgentAssetsPayload;
     scenes?: AgentScenesPayload;
     effects?: AgentEffectsPayload;
+    render?: unknown;
   };
   pending_user_confirmation?: boolean;
 }
@@ -251,9 +253,10 @@ export interface VibeArtifact {
 }
 
 export type VibeEvent =
-  | { type: 'token'; token: string }
+  | { type: 'token'; text: string }
   | { type: 'artifact'; artifact: VibeArtifact }
-  | { type: 'question'; question: string; options?: string[] }
+  | { type: 'question'; text: string; options?: string[] }
   | { type: 'progress'; step: string; progress: number; message?: string }
   | { type: 'error'; message: string; code?: string }
-  | { type: 'done'; payload?: AgentState['payload'] };
+  | { type: 'done'; payload?: AgentState['payload'] }
+  | { type: 'job_created'; job_id: string; status: string };

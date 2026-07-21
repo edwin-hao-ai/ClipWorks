@@ -246,14 +246,18 @@ export function AgentChat({
   useEffect(() => {
     if (
       !autoSentRef.current &&
-      mode === 'plan' &&
+      (mode === 'plan' || mode === 'vibe') &&
       initialPrompt &&
       !loading &&
       !agentState?.messages?.length
     ) {
       autoSentRef.current = true;
       setMessages((prev) => [...prev, { role: 'user', text: initialPrompt }]);
-      handlePlanStream(initialPrompt);
+      if (mode === 'plan') {
+        handlePlanStream(initialPrompt);
+      } else {
+        handleVibeStream(initialPrompt);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initialPrompt, loading, agentState?.messages?.length]);
@@ -420,7 +424,7 @@ export function AgentChat({
 
         switch (event.type) {
           case 'token': {
-            const token = (event as { token?: string }).token;
+            const token = (event as { text?: string }).text;
             if (typeof token === 'string') {
               currentReply += token;
               setStreamingText(currentReply);
@@ -428,10 +432,14 @@ export function AgentChat({
             break;
           }
           case 'question': {
-            const question = (event as { question?: string }).question;
+            const question = (event as { text?: string }).text;
             if (typeof question === 'string') {
               setMessages((prev) => [...prev, { role: 'agent', text: question }]);
             }
+            break;
+          }
+          case 'job_created': {
+            onStatusChange('generating');
             break;
           }
           case 'artifact': {

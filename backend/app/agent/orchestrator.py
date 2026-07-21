@@ -1,9 +1,7 @@
 import json
 import logging
 import re
-from contextlib import contextmanager
 from typing import Iterator, Optional
-from unittest.mock import MagicMock
 
 from pydantic import BaseModel, Field
 
@@ -90,22 +88,6 @@ class Orchestrator:
                 confirmation_message="能再说一下你的需求吗？",
             )
         return parse_action_json(full_text)
-
-    def _tool_mock(self, tool_name: str, return_value):
-        """Test helper context manager that replaces a single tool with a mock."""
-        @contextmanager
-        def _cm():
-            mock = MagicMock(return_value=return_value)
-            original = self.tools.get(tool_name)
-            self.tools[tool_name] = mock
-            try:
-                yield mock
-            finally:
-                if original is None:
-                    self.tools.pop(tool_name, None)
-                else:
-                    self.tools[tool_name] = original
-        return _cm()
 
     def run_action(
         self,
