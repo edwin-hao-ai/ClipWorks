@@ -108,3 +108,11 @@ def run_understand(project, state: dict, user_input: Optional[str] = None) -> It
             "cta": "",
         }
     yield sse_done()
+
+
+from app.agent.steps import run_step as run_script_step
+
+
+def run_script(project, state: dict, user_input: Optional[str] = None) -> Iterator[str]:
+    yield from run_script_step("script", project, state, user_input)
+
