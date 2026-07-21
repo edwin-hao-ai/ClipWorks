@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Film, FolderOpen, Settings, CreditCard, LogOut } from 'lucide-react';
+import { Film, FolderOpen, Settings, CreditCard, LogOut, Plus } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { NewProjectDialog } from '@/components/project/NewProjectDialog';
 import { clsx } from 'clsx';
 
 const nav = [
@@ -14,7 +15,7 @@ const nav = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const logout = useAuthStore((s) => s.logout);
+  const { logout } = useAuthStore();
 
   return (
     // 窄屏退化为图标+文字标签轨（w-14）：固定 240px 侧栏在手机上会把内容区挤没。
@@ -26,6 +27,19 @@ export function Sidebar() {
         <span className="hidden lg:inline font-bold text-base text-content-primary">ClipWorks</span>
       </div>
       <nav className="flex-1 px-2 lg:px-3 py-4 space-y-1">
+        <NewProjectDialog
+          trigger={(open) => (
+            <button
+              type="button"
+              onClick={open}
+              className="focus-ring flex flex-col lg:flex-row items-center justify-center lg:justify-start gap-0 lg:gap-3 px-2 lg:px-4 py-2.5 w-full rounded-md text-sm font-medium bg-brand-600 text-content-inverse hover:bg-brand-500 hover:shadow-glow transition-all duration-150"
+            >
+              <Plus className="w-5 h-5 shrink-0" />
+              <span className="hidden lg:inline">新建项目</span>
+              <span className="lg:hidden text-[10px] leading-tight mt-0.5 text-center">新建</span>
+            </button>
+          )}
+        />
         {nav.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
