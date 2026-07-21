@@ -4,8 +4,9 @@ from app.agent.session import (
     AgentSession,
     AutonomyLevel,
     AgentEvent,
-    format_sse,
+    sse_text,
     sse_event,
+    sse_done,
 )
 
 
@@ -83,17 +84,7 @@ def test_agent_event_typed_dict():
     assert event["event"] == "step"
 
 
-def test_format_sse():
-    data = {"event": "step", "step": "script"}
-    sse = format_sse(data)
-    assert sse.startswith("data: ")
-    assert sse.endswith("\n\n")
-    assert json.loads(sse.replace("data: ", "").strip()) == data
-
-
-def test_sse_event_helper():
-    event = sse_event("step", step="assets", payload={"x": 1}, message="done")
-    assert event["event"] == "step"
-    assert event["step"] == "assets"
-    assert event["payload"] == {"x": 1}
-    assert event["message"] == "done"
+def test_sse_helpers_produce_json_lines():
+    assert sse_text("hello") == 'data: {"type": "token", "text": "hello"}\n\n'
+    assert sse_event("artifact", {"kind": "script"}) == 'data: {"type": "artifact", "kind": "script"}\n\n'
+    assert json.loads(sse_done().replace("data: ", "").strip()) == {"type": "done"}

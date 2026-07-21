@@ -61,21 +61,16 @@ class AgentSession:
         self.pending_user_confirmation = waiting
 
 
-def sse_event(
-    event: str,
-    step: Optional[str] = None,
-    payload: Optional[dict] = None,
-    message: Optional[str] = None,
-) -> AgentEvent:
-    """Build an AgentEvent dictionary."""
-    return {
-        "event": event,
-        "step": step,
-        "payload": payload or {},
-        "message": message,
-    }
+def sse_event(kind: str, data: dict) -> str:
+    """Format an SSE data line with a typed event payload."""
+    return f"data: {json.dumps({'type': kind, **data}, ensure_ascii=False)}\n\n"
 
 
-def format_sse(data: dict) -> str:
-    """Format a dictionary as a Server-Sent Event data line."""
-    return f"data: {json.dumps(data)}\n\n"
+def sse_text(text: str) -> str:
+    """Emit a streaming text/token SSE event."""
+    return sse_event("token", {"text": text})
+
+
+def sse_done() -> str:
+    """Emit the terminal SSE event."""
+    return sse_event("done", {})
