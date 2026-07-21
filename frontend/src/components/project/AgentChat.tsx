@@ -414,7 +414,6 @@ export function AgentChat({
     setStreamingText('');
 
     let currentReply = '';
-    let donePayload: AgentState['payload'] | undefined;
 
     try {
       for await (const event of api.stream(`/projects/${projectId}/agent/vibe/stream`, {
@@ -484,16 +483,17 @@ export function AgentChat({
             break;
           }
           case 'done': {
-            donePayload = (event as { payload?: AgentState['payload'] }).payload;
+            // The backend sends { type: 'done', step: session.step }; the
+            // accumulated payload is already merged via artifact events.
+            const step = (event as { step?: AgentState['step'] }).step;
+            if (step) {
+              emitAgentState({ step });
+            }
             break;
           }
         }
 
         if (event.type === 'done') break;
-      }
-
-      if (donePayload) {
-        emitAgentState({ step: 'approved', payload: donePayload });
       }
       if (currentReply) {
         setMessages((prev) => [...prev, { role: 'agent', text: currentReply }]);

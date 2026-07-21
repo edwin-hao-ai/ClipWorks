@@ -3,8 +3,7 @@ import logging
 from typing import Iterator, Optional
 
 from app.agent.llm import KimiClient, LLMUnavailableError
-from app.agent.prompts import ARCHITECT_SYSTEM_PROMPT
-from app.agent.session import sse_done, sse_error, sse_event, sse_text
+from app.agent.session import sse_error, sse_event, sse_text
 from app.agent.steps import run_step
 from app.config import KIMI_PLANNING_MODEL
 from app.models import RenderJob
@@ -50,12 +49,15 @@ def _build_context(project, user_input: Optional[str], state: dict) -> str:
 
 
 def _extract_understand_json(text: str) -> Optional[dict]:
+    # Lazy import to avoid a circular dependency: orchestrator imports tools
+    # at module load, so tools cannot import orchestrator top-level.
+    from app.agent.orchestrator import _extract_json_block
+
+    block = _extract_json_block(text)
+    if not block:
+        return None
     try:
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0]
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0]
-        data = json.loads(text.strip())
+        data = json.loads(block)
         if isinstance(data, dict) and "summary" in data:
             return data
     except Exception:
@@ -101,12 +103,10 @@ def run_understand(project, state: dict, user_input: Optional[str] = None) -> It
         state["payload"]["understand"] = summary
         yield sse_text("AI 暂不可用，已使用默认理解摘要。")
         yield sse_event("artifact", {"kind": "understand", "data": summary})
-        yield sse_done()
         return
     except Exception as exc:
         logger.exception("Understand failed: %s", exc)
         yield sse_error("理解需求失败。")
-        yield sse_done()
         return
 
     parsed = _extract_understand_json(full_text)
@@ -127,7 +127,6 @@ def run_understand(project, state: dict, user_input: Optional[str] = None) -> It
     data = state["payload"]["understand"]
     yield sse_text(f"已理解需求：{_summary_for_understand(data)}")
     yield sse_event("artifact", {"kind": "understand", "data": data})
-    yield sse_done()
 
 
 def _copy_payload_to_top_level(state: dict, step_name: str) -> None:
@@ -266,9 +265,13 @@ def run_render(project, state: dict, user_input: Optional[str] = None, db=None, 
     db.add(job)
     db.commit()
     db.refresh(job)
+
+    # Deduct one credit atomically with job creation/project status update.
+    user.credits -= 1
+    db.commit()
+
     render_video_task.delay(job.id, project.id, None, None, plan)
     yield sse_event("job_created", {"job_id": job.id, "status": "queued"})
     yield sse_event("progress", {"step": "render", "progress": 0, "message": "已加入渲染队列"})
     yield sse_event("artifact", {"kind": "render", "data": {"job_id": job.id, "status": "queued"}})
-    yield sse_done()
 

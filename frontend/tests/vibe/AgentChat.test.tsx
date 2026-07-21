@@ -202,12 +202,11 @@ describe('AgentChat vibe mode', () => {
     });
   });
 
-  it('calls onAgentStateChange with done payload', async () => {
+  it('calls onAgentStateChange with done step', async () => {
     const onAgentStateChange = vi.fn();
-    const payload = { script: { title: 'Final' } };
 
     (api.stream as ReturnType<typeof vi.fn>).mockImplementation((_path, _body, signal) =>
-      makeAsyncIterator([{ type: 'done', payload }], signal)
+      makeAsyncIterator([{ type: 'done', step: 'approved' }], signal)
     );
 
     render(
@@ -227,7 +226,6 @@ describe('AgentChat vibe mode', () => {
       expect(onAgentStateChange).toHaveBeenLastCalledWith(
         expect.objectContaining({
           step: 'approved',
-          payload,
         })
       );
     });

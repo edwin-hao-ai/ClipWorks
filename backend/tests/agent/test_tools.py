@@ -25,7 +25,6 @@ def test_run_understand_sets_summary():
         events = list(run_understand(project, state, "make a promo"))
 
     assert state["payload"]["understand"]["summary"] == "s"
-    assert any('"type": "done"' in e for e in events)
 
 
 def test_run_understand_extracts_json_from_code_fence():
@@ -59,7 +58,6 @@ def test_run_understand_fallback_on_llm_unavailable():
     assert summary["duration"] == 20
     assert summary["format"] == "1:1"
     assert any("AI 暂不可用" in e for e in events)
-    assert any('"type": "done"' in e for e in events)
 
 
 def test_run_understand_fallback_on_unparseable_output():
@@ -75,7 +73,6 @@ def test_run_understand_fallback_on_unparseable_output():
     assert summary["summary"] == "make a promo"
     assert summary["duration"] == 30
     assert summary["format"] == "16:9"
-    assert any('"type": "done"' in e for e in events)
 
 
 def test_run_understand_uses_project_title_when_user_input_empty():
@@ -176,6 +173,6 @@ def test_run_render_creates_job_and_enqueues_task():
     assert plan["format"] == "16:9"
     assert plan["assets_needed"] == ["img1"]
     assert plan["scenes"][0].get("narration") == ""
+    assert user.credits == 4
     assert any('"type": "job_created"' in e for e in events)
     assert any('"type": "artifact"' in e and '"kind": "render"' in e for e in events)
-    assert any('"type": "done"' in e for e in events)

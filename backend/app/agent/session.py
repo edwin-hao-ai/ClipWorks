@@ -159,6 +159,12 @@ class AgentSession:
             lines.append(f"Source URL: {project.source_url}")
         if self.payload:
             lines.append(f"\nCurrent payload: {json.dumps(self.payload, ensure_ascii=False)[:2000]}")
+        if self.messages:
+            lines.append("\nRecent conversation:")
+            for m in self.messages[-6:]:
+                role = m.get("role", "unknown")
+                content = str(m.get("content", ""))[:300]
+                lines.append(f"{role}: {content}")
         lines.append(f"\nUser message: {user_message}")
         return "\n".join(lines)
 
