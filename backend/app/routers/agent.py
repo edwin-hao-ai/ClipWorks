@@ -15,7 +15,8 @@ from app.database import get_db
 from app.models import Project, User, RenderJob
 from app.routers.auth import get_current_user
 from app.routers.compositions import build_composition_json
-from app.routers.renders import render_video_task, _check_credits
+from app.routers.renders import render_video_task
+from app.services.credits import check_credits
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/agent", tags=["agent"])
@@ -308,7 +309,7 @@ def chat_with_agent(
     scene_id = payload.scene_id
     should_render = payload.render
     if should_render:
-        _check_credits(user)
+        check_credits(user)
     current_composition = build_composition_json(project.composition)
 
     try:
@@ -462,7 +463,7 @@ def approve_agent_plan(
     and the UI can switch to the generation screen.
     """
     project = _require_project(project_id, user, db)
-    _check_credits(user)
+    check_credits(user)
     state = _load_state(project)
 
     plan = None

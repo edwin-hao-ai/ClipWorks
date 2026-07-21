@@ -6,6 +6,14 @@ export function AgentCanvas({ agentState }: { agentState?: AgentState }) {
   const step = (agentState?.step || 'understand') as string;
   const payload = (agentState?.payload || {}) as Record<string, any>;
 
+  // Vibe sessions store artifacts under payload.*, but planning projects created
+  // by the legacy agent keep script/assets/scenes/effects at the top level of
+  // agent_state. Fall back to top-level keys for backward compatibility.
+  const script = payload.script ?? agentState?.script;
+  const assets = payload.assets ?? agentState?.assets;
+  const scenes = payload.scenes ?? agentState?.scenes;
+  const effects = payload.effects ?? agentState?.effects;
+
   if (step === 'understand') {
     const u = payload.understand;
     return (
@@ -23,7 +31,7 @@ export function AgentCanvas({ agentState }: { agentState?: AgentState }) {
   }
 
   if (step === 'script') {
-    const s = payload.script;
+    const s = script;
     return (
       <div className="bg-background-surface border border-border-subtle rounded-lg p-5">
         <h3 className="text-sm font-semibold text-content-secondary mb-3">脚本</h3>
@@ -35,7 +43,7 @@ export function AgentCanvas({ agentState }: { agentState?: AgentState }) {
   }
 
   if (step === 'assets') {
-    const needed: any[] = payload.assets?.needed || [];
+    const needed: any[] = assets?.needed || [];
     return (
       <div className="bg-background-surface border border-border-subtle rounded-lg p-5">
         <h3 className="text-sm font-semibold text-content-secondary mb-3">素材清单</h3>
@@ -59,15 +67,15 @@ export function AgentCanvas({ agentState }: { agentState?: AgentState }) {
   }
 
   if (step === 'scenes') {
-    const scenes: any[] = payload.scenes?.scenes || [];
+    const sceneList: any[] = scenes?.scenes || [];
     return (
       <div className="bg-background-surface border border-border-subtle rounded-lg p-5">
         <h3 className="text-sm font-semibold text-content-secondary mb-3">场景规划</h3>
-        {scenes.length === 0 ? (
+        {sceneList.length === 0 ? (
           <p className="text-content-tertiary">暂无场景</p>
         ) : (
           <div className="space-y-3">
-            {scenes.map((scene, idx) => (
+            {sceneList.map((scene, idx) => (
               <div
                 key={idx}
                 className="text-sm text-content-secondary bg-background-elevated/40 rounded border border-border-subtle/50 p-3"
@@ -90,15 +98,15 @@ export function AgentCanvas({ agentState }: { agentState?: AgentState }) {
   }
 
   if (step === 'effects') {
-    const effects: any[] = payload.effects?.effects || [];
+    const effectList: any[] = effects?.effects || [];
     return (
       <div className="bg-background-surface border border-border-subtle rounded-lg p-5">
         <h3 className="text-sm font-semibold text-content-secondary mb-3">动效设计</h3>
-        {effects.length === 0 ? (
+        {effectList.length === 0 ? (
           <p className="text-content-tertiary">暂无动效设计</p>
         ) : (
           <div className="space-y-3">
-            {effects.map((effect, idx) => (
+            {effectList.map((effect, idx) => (
               <div
                 key={idx}
                 className="text-sm text-content-secondary bg-background-elevated/40 rounded border border-border-subtle/50 p-3"

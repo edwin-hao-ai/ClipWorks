@@ -120,9 +120,11 @@ def test_run_render_errors_when_user_has_no_credits():
     state = {"payload": {}}
     db = MagicMock()
     user = MagicMock()
+    user.id = "user-1"
     user.credits = 0
-    events = list(run_render(project, state, "render it", db=db, user=user))
-    assert any('"type": "error"' in e for e in events)
+    with patch("app.agent.tools.deduct_credits", return_value=False):
+        events = list(run_render(project, state, "render it", db=db, user=user))
+    assert any('"type": "error"' in e and "额度不足" in e for e in events)
     db.add.assert_not_called()
 
 
@@ -147,6 +149,7 @@ def test_run_render_creates_job_and_enqueues_task():
     }
     db = MagicMock()
     user = MagicMock()
+    user.id = "user-1"
     user.credits = 5
 
     def fake_refresh(job):
@@ -154,9 +157,11 @@ def test_run_render_creates_job_and_enqueues_task():
 
     db.refresh.side_effect = fake_refresh
 
-    with patch("app.agent.tools.render_video_task") as mock_task:
-        events = list(run_render(project, state, "render it", db=db, user=user))
+    with patch("app.agent.tools.deduct_credits", return_value=True) as mock_deduct:
+        with patch("app.agent.tools.render_video_task") as mock_task:
+            events = list(run_render(project, state, "render it", db=db, user=user))
 
+    mock_deduct.assert_called_once_with(db, "user-1", amount=1)
     db.add.assert_called_once()
     db.commit.assert_called()
     db.refresh.assert_called_once()
@@ -173,6 +178,5 @@ def test_run_render_creates_job_and_enqueues_task():
     assert plan["format"] == "16:9"
     assert plan["assets_needed"] == ["img1"]
     assert plan["scenes"][0].get("narration") == ""
-    assert user.credits == 4
     assert any('"type": "job_created"' in e for e in events)
     assert any('"type": "artifact"' in e and '"kind": "render"' in e for e in events)

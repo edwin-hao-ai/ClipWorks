@@ -147,7 +147,9 @@ describe.sequential('ProjectWorkspacePage', () => {
     expect(await screen.findByText('Vibe 创作', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByLabelText('创作进度')).toBeInTheDocument();
     expect(screen.getByLabelText('Agent 自主级别')).toBeInTheDocument();
-    expect(screen.getByText('Draft Project')).toBeInTheDocument();
+    // The script title appears in both the top bar (h1) and AgentCanvas (h4);
+    // target the canvas heading explicitly now that legacy top-level state is supported.
+    expect(screen.getByRole('heading', { level: 4, name: 'Draft Project' })).toBeInTheDocument();
     expect(screen.queryByText('暂无预览')).not.toBeInTheDocument();
     expect(screen.queryByText('项目属性')).not.toBeInTheDocument();
     expect(screen.queryByText('场景卡片')).not.toBeInTheDocument();

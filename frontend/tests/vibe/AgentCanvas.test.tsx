@@ -116,4 +116,57 @@ describe('AgentCanvas', () => {
     render(<AgentCanvas />);
     expect(screen.getByText('等待输入…')).toBeInTheDocument();
   });
+
+  it('falls back to top-level script when payload script is missing', () => {
+    render(
+      <AgentCanvas
+        agentState={{
+          step: 'script',
+          script: { title: 'Legacy Script', hook: 'Legacy hook', narrative_arc: 'Arc' },
+        } as AgentState}
+      />
+    );
+    expect(screen.getByText('Legacy Script')).toBeInTheDocument();
+    expect(screen.getByText('Legacy hook')).toBeInTheDocument();
+  });
+
+  it('falls back to top-level assets when payload assets is missing', () => {
+    render(
+      <AgentCanvas
+        agentState={{
+          step: 'assets',
+          assets: { needed: [{ description: 'Legacy asset', source: 'stock' }] },
+        } as unknown as AgentState}
+      />
+    );
+    expect(screen.getByText('Legacy asset')).toBeInTheDocument();
+  });
+
+  it('falls back to top-level scenes when payload scenes is missing', () => {
+    render(
+      <AgentCanvas
+        agentState={{
+          step: 'scenes',
+          scenes: {
+            scenes: [{ description: 'Legacy scene', text: 'Hello', visual: 'gradient', start_time: 0, duration: 3 }],
+          },
+        } as unknown as AgentState}
+      />
+    );
+    expect(screen.getByText('Legacy scene')).toBeInTheDocument();
+  });
+
+  it('falls back to top-level effects when payload effects is missing', () => {
+    render(
+      <AgentCanvas
+        agentState={{
+          step: 'effects',
+          effects: {
+            effects: [{ scene_index: 0, visual_style: 'legacy', animation_keywords: ['zoom'] }],
+          },
+        } as AgentState}
+      />
+    );
+    expect(screen.getByText((content) => content.includes('legacy'))).toBeInTheDocument();
+  });
 });

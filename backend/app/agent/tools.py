@@ -7,7 +7,8 @@ from app.agent.session import sse_error, sse_event, sse_text
 from app.agent.steps import run_step
 from app.config import KIMI_PLANNING_MODEL
 from app.models import RenderJob
-from app.routers.renders import _check_credits, render_video_task
+from app.services.credits import deduct_credits
+from app.tasks.render_task import render_video_task
 
 logger = logging.getLogger(__name__)
 
@@ -216,11 +217,6 @@ def run_render(project, state: dict, user_input: Optional[str] = None, db=None, 
     if not db or not user:
         yield sse_error("Internal error: missing db or user for render")
         return
-    try:
-        _check_credits(user)
-    except Exception as exc:
-        yield sse_error(str(exc))
-        return
 
     # Build plan from state payload like /agent/approve does.
     script = state.get("payload", {}).get("script", {})
@@ -259,16 +255,18 @@ def run_render(project, state: dict, user_input: Optional[str] = None, db=None, 
     if plan.get("title"):
         project.title = plan["title"]
 
+    # Deduct one credit atomically before creating the job so concurrent
+    # render requests cannot over-deduct and leave orphan queued jobs.
+    if not deduct_credits(db, user.id, amount=1):
+        yield sse_error("额度不足，请前往计费页升级套餐")
+        return
+
     project.status = "generating"
 
     job = RenderJob(project_id=project.id, status="queued", logs=[])
     db.add(job)
     db.commit()
     db.refresh(job)
-
-    # Deduct one credit atomically with job creation/project status update.
-    user.credits -= 1
-    db.commit()
 
     render_video_task.delay(job.id, project.id, None, None, plan)
     yield sse_event("job_created", {"job_id": job.id, "status": "queued"})
