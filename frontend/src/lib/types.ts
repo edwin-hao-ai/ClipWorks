@@ -8,10 +8,12 @@ export interface User {
 
 export type AgentStep =
   | 'idle'
+  | 'understand'
   | 'script'
   | 'assets'
   | 'scenes'
   | 'effects'
+  | 'render'
   | 'approved'
   | 'chatting'
   | 'pending_approval'
@@ -75,6 +77,37 @@ export interface AgentEffectPlan {
   effects: AgentEffectItem[];
 }
 
+export interface AgentUnderstandPayload {
+  summary?: string;
+  duration?: number;
+  format?: string;
+  audience?: string;
+  style?: string;
+  platform?: string;
+  cta?: string;
+}
+
+export interface AgentScriptPayload {
+  title?: string;
+  hook?: string;
+  narrative_arc?: string;
+  cta?: string;
+  duration?: number;
+  format?: string;
+}
+
+export interface AgentAssetsPayload {
+  needed?: { description?: string; source?: string }[];
+}
+
+export interface AgentScenesPayload {
+  scenes?: Scene[];
+}
+
+export interface AgentEffectsPayload {
+  effects?: { scene_index?: number; visual_style?: string; animation_keywords?: string[] }[];
+}
+
 export interface AgentState {
   step: AgentStep;
   generating_step?: AgentStep | null;
@@ -84,6 +117,15 @@ export interface AgentState {
   assets?: AgentAssetPlan | null;
   scenes?: AgentScenePlan | null;
   effects?: AgentEffectPlan | null;
+  autonomy_level?: 'confirm_each' | 'confirm_render_only' | 'full_auto';
+  payload?: {
+    understand?: AgentUnderstandPayload;
+    script?: AgentScriptPayload;
+    assets?: AgentAssetsPayload;
+    scenes?: AgentScenesPayload;
+    effects?: AgentEffectsPayload;
+  };
+  pending_user_confirmation?: boolean;
 }
 
 export interface AgentPlan {
@@ -194,3 +236,24 @@ export interface PipelineStep {
   label: string;
   description?: string;
 }
+
+export type VibeEventType =
+  | 'token'
+  | 'artifact'
+  | 'question'
+  | 'progress'
+  | 'error'
+  | 'done';
+
+export interface VibeArtifact {
+  kind: 'understand' | 'script' | 'assets' | 'scenes' | 'effects' | 'render';
+  data: unknown;
+}
+
+export type VibeEvent =
+  | { type: 'token'; token: string }
+  | { type: 'artifact'; artifact: VibeArtifact }
+  | { type: 'question'; question: string; options?: string[] }
+  | { type: 'progress'; step: string; progress: number; message?: string }
+  | { type: 'error'; message: string; code?: string }
+  | { type: 'done'; payload?: AgentState['payload'] };
