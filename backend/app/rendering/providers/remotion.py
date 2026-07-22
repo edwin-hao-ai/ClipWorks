@@ -105,7 +105,7 @@ class RemotionProvider(RenderProvider):
     name = "remotion"
 
     def can_handle(self, request: RenderRequest) -> bool:
-        return request.engine in (None, "remotion", "hybrid")
+        return request.engine in ("remotion", "hybrid")
 
     async def render(self, job, project, request: RenderRequest) -> RenderResult:
         project_dir = os.path.join(ASSETS_DIR, project.id)

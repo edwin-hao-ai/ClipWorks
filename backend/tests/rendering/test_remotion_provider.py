@@ -7,22 +7,12 @@ from app.rendering.providers.remotion import RemotionProvider, _resolve_asset_ur
 
 
 @pytest.mark.asyncio
-async def test_remotion_provider_can_handle():
+async def test_remotion_provider_can_handle_explicit_engine():
     provider = RemotionProvider()
     assert provider.can_handle(RenderRequest(engine="remotion", composition={}, assets={})) is True
+    assert provider.can_handle(RenderRequest(engine="hybrid", composition={}, assets={})) is True
     assert provider.can_handle(RenderRequest(engine="hyperframes", composition={}, assets={})) is False
-
-
-def test_remotion_provider_handles_hybrid_engine():
-    provider = RemotionProvider()
-    request = RenderRequest(composition={}, assets={}, engine="hybrid")
-    assert provider.can_handle(request)
-
-
-def test_remotion_provider_still_rejects_unknown_engine():
-    provider = RemotionProvider()
-    request = RenderRequest(composition={}, assets={}, engine="video-use")
-    assert not provider.can_handle(request)
+    assert provider.can_handle(RenderRequest(composition={}, assets={})) is False
 
 
 @pytest.mark.asyncio
