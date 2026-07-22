@@ -3,12 +3,11 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-import httpx
-
+from app.agent import generate_html
 from app.celery_app import celery_app
-from app.config import ASSETS_DIR, RENDERER_URL
+from app.config import ASSETS_DIR
 from app.database import SessionLocal
-from app.models import MediaAsset, Project, RenderJob, User
+from app.models import Project, RenderJob, User
 from app.rendering.provider import RenderRequest
 from app.rendering.service import RenderService
 
@@ -265,237 +264,21 @@ def _collect_raw_assets(project: Project) -> list[str]:
     return paths
 
 
-def _write_project_html(project_id: str, composition: dict, assets: dict) -> tuple[str, str]:
-    import os
-    from app.agent import generate_html
+def _write_project_html(
+    project_id: str,
+    composition: dict,
+    assets: dict,
+    html_name: str = "index.html",
+) -> tuple[str, str]:
+    """生成整片 HyperFrames HTML 并落盘，返回 (local_path, /api/static url)。"""
     project_dir = os.path.join(ASSETS_DIR, project_id)
     os.makedirs(project_dir, exist_ok=True)
-    html_path = os.path.join(project_dir, "index.html")
+    html_path = os.path.join(project_dir, html_name)
     html = generate_html(composition, assets)
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
     rel = os.path.relpath(html_path, ASSETS_DIR).replace(os.path.sep, "/")
     return html_path, f"/api/static/{rel}"
-
-
-def _derive_scenes(comp_json: dict) -> list[dict]:
-    """从 composition 中提取 scene 列表。优先使用 plan.scenes，否则从 text/video 轨推导。"""
-    plan = (comp_json.get("metadata") or {}).get("plan") or {}
-    scenes = plan.get("scenes")
-    if isinstance(scenes, list) and scenes:
-        return [dict(s) for s in scenes]
-
-    # 无 plan.scenes 时，从 text 轨 + video 轨的 clip 边界推导
-    clips: list[dict] = []
-    for track in comp_json.get("tracks", []) or []:
-        ttype = track.get("type")
-        if ttype not in {"text", "video", "image", "overlay"}:
-            continue
-        for clip in track.get("clips", []) or []:
-            clips.append({
-                "start": float(clip.get("start_time", 0) or 0),
-                "duration": float(clip.get("duration", 5) or 5),
-                "text": clip.get("text_content", ""),
-                "visual": (clip.get("style") or {}).get("visual", ""),
-                "transition": (clip.get("style") or {}).get("transition", "fade"),
-                "lower_third": (clip.get("style") or {}).get("lower_third", ""),
-                "visual_type": (clip.get("style") or {}).get("visual_type", "text"),
-                "narration": (clip.get("style") or {}).get("narration", ""),
-                "shot": (clip.get("style") or {}).get("shot", ""),
-            })
-    clips.sort(key=lambda c: c["start"])
-    # 合并同一 start 的 clip
-    merged: list[dict] = []
-    for c in clips:
-        if merged and abs(merged[-1]["start"] - c["start"]) < 0.1:
-            if c["text"] and not merged[-1]["text"]:
-                merged[-1]["text"] = c["text"]
-            if c["visual"] and not merged[-1]["visual"]:
-                merged[-1]["visual"] = c["visual"]
-        else:
-            merged.append(dict(c))
-    return merged
-
-
-def _write_scene_htmls(
-    project_id: str,
-    scenes: list[dict],
-    composition: dict,
-    assets: dict,
-    job: RenderJob,
-    db,
-) -> dict[int, str]:
-    """为每个 scene 生成独立 HTML，返回 index -> html_path 映射。"""
-    from app.agent import generate_scene_html
-
-    render_dir = os.path.join(ASSETS_DIR, project_id, f"render_{job.id}")
-    os.makedirs(render_dir, exist_ok=True)
-    html_paths: dict[int, str] = {}
-    for idx, scene in enumerate(scenes):
-        html_path = os.path.join(render_dir, f"scene_{idx}.html")
-        try:
-            html = generate_scene_html(scene, composition, assets)
-        except Exception as exc:
-            logger.warning("generate_scene_html failed for scene %d: %s", idx, exc)
-            html = generate_scene_html(scene, composition, {})
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html)
-        html_paths[idx] = html_path
-        _append_log(job, f"场景 HTML 已生成 {idx + 1}/{len(scenes)}")
-        db.commit()
-    return html_paths
-
-
-def _prerender_scenes(
-    project_id: str,
-    scenes: list[dict],
-    html_paths: dict[int, str],
-    job: RenderJob,
-    db,
-) -> dict[int, tuple[str, bool]]:
-    """调用 renderer /render/hyperframes 把每个 scene HTML 同步顺序渲染成 MP4。
-
-    返回 index -> (scene_asset_id, fallback_to_remotion) 的映射。
-    fallback_to_remotion=True 表示该 scene HF 渲染失败，应让 Remotion 用内置动效渲染。
-    """
-    render_dir = os.path.join(ASSETS_DIR, project_id, f"render_{job.id}")
-    os.makedirs(render_dir, exist_ok=True)
-    results: dict[int, tuple[str, bool]] = {}
-
-    for idx, scene in enumerate(scenes):
-        html_path = html_paths[idx]
-        output_path = os.path.join(render_dir, f"scene_{idx}.mp4")
-        fallback = True
-        try:
-            with httpx.Client(timeout=120) as client:
-                resp = client.post(
-                    f"{RENDERER_URL}/render/hyperframes",
-                    json={"html_path": html_path, "output_path": output_path},
-                )
-                data = resp.json()
-                if data.get("success") and os.path.exists(output_path):
-                    fallback = False
-                elif data.get("success"):
-                    logger.warning(
-                        "HF prerender scene %d reported success but output missing: %s",
-                        idx,
-                        output_path,
-                    )
-        except Exception as exc:
-            logger.warning("HF prerender scene %d failed: %s", idx, exc)
-
-        if fallback:
-            _append_log(job, f"场景 {idx + 1}/{len(scenes)} HF 预渲染失败，将回退 Remotion 默认动效")
-            results[idx] = ("", True)
-            db.commit()
-            continue
-
-        # 注册为 MediaAsset，方便 Remotion 通过 asset_id 引用
-        asset = MediaAsset(
-            project_id=project_id,
-            type="video",
-            source="generated",
-            local_path=os.path.abspath(output_path),
-            metadata_={"name": f"第 {idx + 1} 镜动效预览", "scene_index": idx},
-        )
-        db.add(asset)
-        db.flush()
-        results[idx] = (asset.id, False)
-        _append_log(job, f"场景预渲染完成 {idx + 1}/{len(scenes)}")
-        db.commit()
-
-    return results
-
-
-def _build_assembly_composition(
-    comp_json: dict,
-    scenes: list[dict],
-    scene_results: dict[int, tuple[str, bool]],
-    project,
-) -> dict:
-    """把原 composition 中与 scene 时间范围相交的 video/image clip 替换为预渲染的 scene MP4。
-
-    采用区间相交判断：只要 clip 与某 scene 有重叠，即视为属于该 scene。
-    HF 成功的 scene 会删除所有相交 clip 并插入一条 scene MP4；HF 失败的 scene
-    保留原 clip，让 Remotion 用内置动效兜底。
-    """
-    import copy
-
-    assembly = copy.deepcopy(comp_json)
-    tracks = assembly.get("tracks", []) or []
-    new_tracks: list[dict] = []
-
-    for track in tracks:
-        ttype = track.get("type")
-        if ttype not in {"video", "image"}:
-            new_tracks.append(track)
-            continue
-
-        kept_clips: list[dict] = []
-        for clip in track.get("clips", []) or []:
-            c_start = float(clip.get("start_time", 0) or 0)
-            c_dur = float(clip.get("duration", 5) or 5)
-            c_end = c_start + c_dur
-
-            # 判断该 clip 是否与某个 scene 相交
-            intersects_success_idx: Optional[int] = None
-            intersects_fallback = False
-            for s_idx, scene in enumerate(scenes):
-                if s_idx not in scene_results:
-                    continue
-                s_start = float(scene.get("start", 0))
-                s_dur = float(scene.get("duration", scene.get("dur", 5)))
-                s_end = s_start + s_dur
-                if max(c_start, s_start) < min(c_end, s_end):
-                    _, fallback = scene_results[s_idx]
-                    if fallback:
-                        intersects_fallback = True
-                    else:
-                        intersects_success_idx = s_idx
-                        break
-
-            if intersects_success_idx is not None:
-                # HF 成功的 scene 会统一插入一条 scene MP4，原 clip 删除
-                continue
-            if intersects_fallback:
-                # 保留原 clip，让 Remotion 用 KenBurns/MotionText 兜底
-                kept_clips.append(clip)
-            else:
-                kept_clips.append(clip)
-
-        if kept_clips:
-            new_track = dict(track)
-            new_track["clips"] = kept_clips
-            new_tracks.append(new_track)
-
-    # 为 HF 成功但未在 video/image 轨上体现出来的 scene 单独插入一条 video 轨（兜底）
-    orphan_scene_clips = []
-    for s_idx, scene in enumerate(scenes):
-        if s_idx not in scene_results:
-            continue
-        asset_id, fallback = scene_results[s_idx]
-        if fallback:
-            continue
-        if not any(
-            c.get("style", {}).get("scene_index") == s_idx
-            for t in new_tracks for c in t.get("clips", [])
-        ):
-            orphan_scene_clips.append({
-                "start_time": scene.get("start", 0),
-                "duration": scene.get("duration", 5),
-                "asset_id": asset_id,
-                "position": {"x": 0, "y": 0, "width": assembly.get("width", 1920), "height": assembly.get("height", 1080)},
-                "style": {"transition": scene.get("transition", "fade"), "scene_index": s_idx, "source": "hyperframes"},
-                "text_content": "",
-            })
-    if orphan_scene_clips:
-        new_tracks.insert(0, {"type": "video", "index": -1, "name": "HF Scenes", "clips": orphan_scene_clips})
-
-    assembly["tracks"] = new_tracks
-    # 标记总装 composition 来源，便于 Remotion 端识别
-    assembly["metadata"] = assembly.get("metadata") or {}
-    assembly["metadata"]["engine"] = "hybrid"
-    return assembly
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30, time_limit=900, soft_time_limit=840)
@@ -602,7 +385,9 @@ def render_video_task(
         _html_path = ""
         _html_url = ""
         try:
-            _html_path, _html_url = _write_project_html(project_id, comp_json, assets)
+            _html_path, _html_url = _write_project_html(
+                project_id, comp_json, assets, html_name=f"index_{job.id}.html"
+            )
             job.html_output_path = _html_path
             job.html_output_url = _html_url
             _append_log(job, "HTML 预览已生成")
@@ -610,38 +395,19 @@ def render_video_task(
             logger.warning("HTML generation failed for job=%s: %s", job_id, html_exc)
             _append_log(job, f"HTML 生成失败：{str(html_exc)[:120]}，将使用兜底 HTML")
             # Try once more with a minimal fallback HTML so rendering can still proceed.
-            _html_path, _html_url = _write_project_html(project_id, comp_json, {})
+            _html_path, _html_url = _write_project_html(
+                project_id, comp_json, {}, html_name=f"index_{job.id}.html"
+            )
             job.html_output_path = _html_path
             job.html_output_url = _html_url
 
-        # 默认走 hybrid：拆分 scene -> HF 预渲染 -> Remotion 总装
-        selected_engine = engine or "hybrid"
-        if selected_engine == "hybrid":
-            _append_log(job, "进入 Hybrid 渲染：逐场景生成 HTML 动画…")
-            db.commit()
-            try:
-                scenes = _derive_scenes(comp_json)
-                if scenes:
-                    html_paths = _write_scene_htmls(project_id, scenes, comp_json, assets, job, db)
-                    scene_results = _prerender_scenes(project_id, scenes, html_paths, job, db)
-                    fallback_count = sum(1 for _, fb in scene_results.values() if fb)
-                    success_count = len(scene_results) - fallback_count
-                    _append_log(job, f"场景预渲染完成：{success_count} 个成功，{fallback_count} 个回退 Remotion")
-                    comp_json = _build_assembly_composition(comp_json, scenes, scene_results, project)
-                    _append_log(job, "总装时间线已构建")
-                else:
-                    _append_log(job, "未识别到 scene，将使用 Remotion 直接渲染")
-                    selected_engine = "remotion"
-            except Exception as hybrid_exc:
-                logger.warning("Hybrid pipeline failed for job=%s: %s", job_id, hybrid_exc)
-                _append_log(job, f"Hybrid 流程失败：{str(hybrid_exc)[:120]}，回退纯 Remotion")
-                selected_engine = "remotion"
-            db.commit()
+        # 默认整片 HyperFrames 渲染；显式 engine 透传给 RenderService。
+        selected_engine = engine or "hyperframes"
 
         job.progress = 70
         db.commit()
 
-        logger.info(f"Render request engine={selected_engine!r} for job={job_id}")
+        logger.info("Render request engine=%s for job=%s", selected_engine, job_id)
         _append_log(
             job,
             f"调用渲染引擎 {selected_engine or 'auto'} 合成视频，引擎较慢时这一步可能需要 1-2 分钟…",
@@ -653,7 +419,6 @@ def render_video_task(
         if _guard_cancel(db, job, project):
             return
 
-        # 刷新 project 关系，确保 RemotionProvider 能解析到刚刚创建的 scene MP4 素材
         db.refresh(project)
 
         request = RenderRequest(
@@ -668,7 +433,7 @@ def render_video_task(
             html_url=_html_url,
         )
         job.progress = 80
-        _append_log(job, "渲染请求已发送，引擎正在出片（Remotion 约需 1-3 分钟）…")
+        _append_log(job, "渲染请求已发送，引擎正在出片…")
         db.commit()
         result = RenderService().render(job, project, request)
         logger.info(f"Render result success={result.success} output_url={result.output_url} error={result.error_message}")

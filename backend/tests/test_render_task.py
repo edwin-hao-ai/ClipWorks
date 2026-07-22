@@ -1,10 +1,7 @@
 import os
 from unittest.mock import patch, MagicMock
-from app.tasks.render_task import (
-    render_video_task,
-    _derive_scenes,
-    _build_assembly_composition,
-)
+
+from app.tasks.render_task import render_video_task
 
 
 def test_render_video_task_is_celery_task():
@@ -73,68 +70,69 @@ def test_render_video_task_updates_job_on_success(
             p.stop()
 
 
-def test_derive_scenes_uses_plan_scenes():
-    comp = {
-        "metadata": {
-            "plan": {
-                "scenes": [
-                    {"start": 0, "duration": 3, "text": "A"},
-                    {"start": 3, "duration": 4, "text": "B"},
-                ]
-            }
-        },
-        "tracks": [],
-    }
-    scenes = _derive_scenes(comp)
-    assert len(scenes) == 2
-    assert scenes[0]["text"] == "A"
-    assert scenes[1]["start"] == 3
+def test_render_video_task_uses_whole_page_html(monkeypatch):
+    """Default path should call generate_html once and RenderService, not hybrid scene prerender."""
+    mock_session = MagicMock()
+    monkeypatch.setattr("app.tasks.render_task.SessionLocal", lambda: mock_session)
+
+    calls = {"html": 0}
+
+    def fake_generate_html(comp, assets):
+        calls["html"] += 1
+        return "<html>whole page</html>"
+
+    monkeypatch.setattr("app.tasks.render_task.generate_html", fake_generate_html)
+
+    mock_result = MagicMock()
+    mock_result.success = True
+    mock_result.output_url = "/api/static/p1/output.mp4"
+    mock_result.html_output_url = "/api/static/p1/index.html"
+    mock_result.error_message = None
+    mock_service = MagicMock()
+    mock_service.render.return_value = mock_result
+    monkeypatch.setattr("app.tasks.render_task.RenderService", lambda: mock_service)
+
+    monkeypatch.setattr("app.services.stock_images.fetch_stock_images", lambda *a, **kw: [])
+    monkeypatch.setattr("app.services.audio_track.build_soundtrack", lambda *a, **kw: None)
+    monkeypatch.setattr("app.rendering.qa.check_render_quality", lambda *a, **kw: (True, None))
+
+    patches = _patch_kimi_client()
+    for p in patches:
+        p.start()
+    try:
+        mock_job = MagicMock()
+        mock_job.status = "queued"
+        mock_job.logs = []
+        mock_job.id = "job-1"
+        mock_project = MagicMock()
+        mock_project.composition = None
+        mock_project.source_url = None
+        mock_project.assets = []
+        mock_project.target_format = None
+        mock_user = MagicMock()
+        mock_user.credits = 5
+        mock_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_job,
+            mock_project,
+            mock_user,
+        ]
+
+        render_video_task.run("job-1", "proj-1", "prompt")
+
+        assert calls["html"] == 1
+        assert mock_service.render.call_count == 1
+        call_args = mock_service.render.call_args
+        request_arg = call_args[0][2]
+        assert request_arg.engine == "hyperframes"
+        assert request_arg.html_path.endswith("index_job-1.html")
+        assert mock_job.status == "completed"
+    finally:
+        for p in patches:
+            p.stop()
 
 
-def test_derive_scenes_falls_back_to_clips():
-    comp = {
-        "metadata": {},
-        "tracks": [
-            {"type": "text", "clips": [
-                {"start_time": 0, "duration": 2, "text_content": "X"},
-                {"start_time": 2, "duration": 3, "text_content": "Y"},
-            ]}
-        ],
-    }
-    scenes = _derive_scenes(comp)
-    assert len(scenes) == 2
-    assert scenes[0]["text"] == "X"
-
-
-def test_build_assembly_composition_replaces_visual_clips():
-    comp = {
-        "width": 1920,
-        "height": 1080,
-        "duration": 7,
-        "tracks": [
-            {"type": "video", "index": 0, "clips": [{"start_time": 0, "duration": 3, "asset_id": "old1"}]},
-            {"type": "text", "index": 1, "clips": [{"start_time": 0, "duration": 3, "text_content": "A"}]},
-        ],
-    }
-    scenes = [{"start": 0, "duration": 3, "text": "A", "transition": "fade"}]
-    scene_results = {0: ("scene_0_asset_id", False)}
-    project = MagicMock()
-    project.id = "p1"
-    project.assets = []
-    result = _build_assembly_composition(comp, scenes, scene_results, project)
-    assert len(result["tracks"]) == 2
-    video_track = result["tracks"][0]
-    assert video_track["type"] == "video"
-    assert len(video_track["clips"]) == 1
-    assert video_track["clips"][0]["asset_id"] == "scene_0_asset_id"
-    assert video_track["clips"][0]["style"]["transition"] == "fade"
-    # text track unchanged
-    assert result["tracks"][1]["clips"][0]["text_content"] == "A"
-
-
-def test_render_video_task_hybrid_path(monkeypatch):
-    """验证 engine='hybrid' 时走 scene 拆分 -> HF 预渲染 -> Remotion 总装流程。"""
-    # 屏蔽外部网络/文件系统依赖，保留任务编排逻辑。
+def test_render_video_task_explicit_engine_passthrough(monkeypatch):
+    """Explicit engine should be passed through to RenderService unchanged."""
     mock_session = MagicMock()
     monkeypatch.setattr("app.tasks.render_task.SessionLocal", lambda: mock_session)
 
@@ -149,12 +147,8 @@ def test_render_video_task_hybrid_path(monkeypatch):
 
     monkeypatch.setattr("app.services.stock_images.fetch_stock_images", lambda *a, **kw: [])
     monkeypatch.setattr("app.services.audio_track.build_soundtrack", lambda *a, **kw: None)
-    monkeypatch.setattr("app.tasks.render_task._write_scene_htmls", lambda *a, **kw: {0: "/tmp/scene_0.html"})
-    monkeypatch.setattr(
-        "app.tasks.render_task._prerender_scenes",
-        lambda *a, **kw: {0: ("scene_asset_id", False)},
-    )
     monkeypatch.setattr("app.rendering.qa.check_render_quality", lambda *a, **kw: (True, None))
+    monkeypatch.setattr("app.tasks.render_task.generate_html", lambda *a, **kw: "<html></html>")
 
     patches = _patch_kimi_client()
     for p in patches:
@@ -163,6 +157,7 @@ def test_render_video_task_hybrid_path(monkeypatch):
         mock_job = MagicMock()
         mock_job.status = "queued"
         mock_job.logs = []
+        mock_job.id = "job-1"
         mock_project = MagicMock()
         mock_project.composition = None
         mock_project.source_url = None
@@ -176,28 +171,72 @@ def test_render_video_task_hybrid_path(monkeypatch):
             mock_user,
         ]
 
-        plan = {
-            "title": "T",
-            "duration": 5,
-            "format": "16:9",
-            "scenes": [{"start": 0, "duration": 5, "text": "Hello"}],
-        }
-        render_video_task.run("job-1", "proj-hybrid", "prompt", engine="hybrid", plan=plan)
-
-        assert mock_job.status == "completed"
-        assert mock_job.output_url == "/api/static/p1/output.mp4"
-        assert mock_user.credits == 4
-        assert any("总装" in (e.get("message") or "") for e in (mock_job.logs or []))
+        render_video_task.run("job-1", "proj-1", "prompt", engine="remotion")
 
         call_args = mock_service.render.call_args
         request_arg = call_args[0][2]
-        assert request_arg.engine == "hybrid"
-        # 总装后的 composition 应把 scene 范围内的 visual clip 替换为预渲染 MP4
-        assert any(
-            clip.get("asset_id") == "scene_asset_id"
-            for track in request_arg.composition.get("tracks", [])
-            for clip in track.get("clips", [])
-        )
+        assert request_arg.engine == "remotion"
+        assert mock_job.status == "completed"
+    finally:
+        for p in patches:
+            p.stop()
+
+
+def test_render_video_task_html_fallback_on_generate_failure(monkeypatch):
+    """If generate_html fails with assets, it should retry with empty assets and still render."""
+    mock_session = MagicMock()
+    monkeypatch.setattr("app.tasks.render_task.SessionLocal", lambda: mock_session)
+
+    calls = {"html": 0, "assets": []}
+
+    def fake_generate_html(comp, assets):
+        calls["html"] += 1
+        calls["assets"].append(assets)
+        if assets:
+            raise RuntimeError("LLM failed")
+        return "<html>fallback</html>"
+
+    monkeypatch.setattr("app.tasks.render_task.generate_html", fake_generate_html)
+
+    mock_result = MagicMock()
+    mock_result.success = True
+    mock_result.output_url = "/api/static/p1/output.mp4"
+    mock_result.html_output_url = "/api/static/p1/index.html"
+    mock_result.error_message = None
+    mock_service = MagicMock()
+    mock_service.render.return_value = mock_result
+    monkeypatch.setattr("app.tasks.render_task.RenderService", lambda: mock_service)
+
+    monkeypatch.setattr("app.services.stock_images.fetch_stock_images", lambda *a, **kw: [])
+    monkeypatch.setattr("app.services.audio_track.build_soundtrack", lambda *a, **kw: None)
+    monkeypatch.setattr("app.rendering.qa.check_render_quality", lambda *a, **kw: (True, None))
+
+    patches = _patch_kimi_client()
+    for p in patches:
+        p.start()
+    try:
+        mock_job = MagicMock()
+        mock_job.status = "queued"
+        mock_job.logs = []
+        mock_job.id = "job-1"
+        mock_project = MagicMock()
+        mock_project.composition = None
+        mock_project.source_url = None
+        mock_project.assets = []
+        mock_project.target_format = None
+        mock_user = MagicMock()
+        mock_user.credits = 5
+        mock_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_job,
+            mock_project,
+            mock_user,
+        ]
+
+        render_video_task.run("job-1", "proj-1", "prompt")
+
+        assert calls["html"] == 2
+        assert calls["assets"][1] == {}
+        assert mock_job.status == "completed"
     finally:
         for p in patches:
             p.stop()
