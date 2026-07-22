@@ -30,6 +30,66 @@ const PIPELINE_STEPS = [
 
 const SCENE_GROUP_THRESHOLD = 0.5;
 
+interface StatusBannersProps {
+  error: string | null;
+  onClearError: () => void;
+  credits: number | null;
+  creditBlocked: boolean;
+  className?: string;
+}
+
+function StatusBanners({
+  error,
+  onClearError,
+  credits,
+  creditBlocked,
+  className,
+}: StatusBannersProps) {
+  if (!error && credits !== 0 && !creditBlocked) return null;
+
+  return (
+    <>
+      {error && (
+        <div
+          data-testid="action-error-banner"
+          className={clsx(
+            'flex items-center justify-between gap-3 rounded-md border border-error/30 bg-error/10 px-4 py-2.5 text-sm text-error',
+            className
+          )}
+        >
+          <span className="min-w-0 break-words">{error}</span>
+          <button
+            type="button"
+            onClick={onClearError}
+            aria-label="关闭错误提示"
+            className="shrink-0 rounded p-0.5 hover:bg-error/15"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      {(credits === 0 || creditBlocked) && (
+        <div
+          data-testid="credits-depleted-banner"
+          className={clsx(
+            'flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning',
+            className
+          )}
+        >
+          <span>
+            {creditBlocked
+              ? '额度不足，本次生成已被拦截。前往计费页切换套餐即可补充额度（演示环境）。'
+              : '额度为 0：新的生成会被拦截。前往计费页切换套餐即可补充额度（演示环境）。'}
+          </span>
+          <a href="/billing" className="shrink-0 font-medium underline hover:text-content-primary">
+            前往计费页
+          </a>
+        </div>
+      )}
+    </>
+  );
+}
+
 function deriveScenesFromComposition(composition: Composition): Scene[] {
   // Build scenes from actual timeline clips when the backend has not produced
   // explicit scene metadata. Audio clips are treated as background and excluded
@@ -455,37 +515,13 @@ export default function ProjectWorkspacePage() {
           >
             {isPlanning && (
               <>
-                {error && (
-                  <div
-                    data-testid="action-error-banner"
-                    className="mb-4 flex items-center justify-between gap-3 rounded-md border border-error/30 bg-error/10 px-4 py-2.5 text-sm text-error"
-                  >
-                    <span className="min-w-0 break-words">{error}</span>
-                    <button
-                      type="button"
-                      onClick={() => setError(null)}
-                      aria-label="关闭错误提示"
-                      className="shrink-0 rounded p-0.5 hover:bg-error/15"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-                {(credits === 0 || creditBlocked) && (
-                  <div
-                    data-testid="credits-depleted-banner"
-                    className="mb-4 flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning"
-                  >
-                    <span>
-                      {creditBlocked
-                        ? '额度不足，本次生成已被拦截。前往计费页切换套餐即可补充额度（演示环境）。'
-                        : '额度为 0：新的生成会被拦截。前往计费页切换套餐即可补充额度（演示环境）。'}
-                    </span>
-                    <a href="/billing" className="shrink-0 font-medium underline hover:text-content-primary">
-                      前往计费页
-                    </a>
-                  </div>
-                )}
+                <StatusBanners
+                  error={error}
+                  onClearError={() => setError(null)}
+                  credits={credits}
+                  creditBlocked={creditBlocked}
+                  className="mb-4"
+                />
                 <div className="h-full flex flex-col p-5">
                   <div className="flex items-center justify-between mb-4 shrink-0">
                     <h1 data-testid="vibe-header" className="text-base font-semibold text-content-primary">Vibe 创作</h1>
@@ -528,37 +564,13 @@ export default function ProjectWorkspacePage() {
 
             {isGenerating && (
               <>
-                {error && (
-                  <div
-                    data-testid="action-error-banner"
-                    className="mb-4 flex items-center justify-between gap-3 rounded-md border border-error/30 bg-error/10 px-4 py-2.5 text-sm text-error"
-                  >
-                    <span className="min-w-0 break-words">{error}</span>
-                    <button
-                      type="button"
-                      onClick={() => setError(null)}
-                      aria-label="关闭错误提示"
-                      className="shrink-0 rounded p-0.5 hover:bg-error/15"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-                {(credits === 0 || creditBlocked) && (
-                  <div
-                    data-testid="credits-depleted-banner"
-                    className="mb-4 flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning"
-                  >
-                    <span>
-                      {creditBlocked
-                        ? '额度不足，本次生成已被拦截。前往计费页切换套餐即可补充额度（演示环境）。'
-                        : '额度为 0：新的生成会被拦截。前往计费页切换套餐即可补充额度（演示环境）。'}
-                    </span>
-                    <a href="/billing" className="shrink-0 font-medium underline hover:text-content-primary">
-                      前往计费页
-                    </a>
-                  </div>
-                )}
+                <StatusBanners
+                  error={error}
+                  onClearError={() => setError(null)}
+                  credits={credits}
+                  creditBlocked={creditBlocked}
+                  className="mb-4"
+                />
                 <div className="max-w-2xl mx-auto h-full flex flex-col items-center justify-center overflow-y-auto py-4">
                   <GenerationPanel
                     project={project}
@@ -592,37 +604,12 @@ export default function ProjectWorkspacePage() {
                   />
                 </aside>
                 <section className="flex-1 flex flex-col min-w-0 bg-background-base">
-                  {error && (
-                    <div
-                      data-testid="action-error-banner"
-                      className="flex items-center justify-between gap-3 rounded-md border border-error/30 bg-error/10 px-4 py-2.5 text-sm text-error"
-                    >
-                      <span className="min-w-0 break-words">{error}</span>
-                      <button
-                        type="button"
-                        onClick={() => setError(null)}
-                        aria-label="关闭错误提示"
-                        className="shrink-0 rounded p-0.5 hover:bg-error/15"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                  {(credits === 0 || creditBlocked) && (
-                    <div
-                      data-testid="credits-depleted-banner"
-                      className="flex items-center justify-between gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-2.5 text-sm text-warning"
-                    >
-                      <span>
-                        {creditBlocked
-                          ? '额度不足，本次生成已被拦截。前往计费页切换套餐即可补充额度（演示环境）。'
-                          : '额度为 0：新的生成会被拦截。前往计费页切换套餐即可补充额度（演示环境）。'}
-                      </span>
-                      <a href="/billing" className="shrink-0 font-medium underline hover:text-content-primary">
-                        前往计费页
-                      </a>
-                    </div>
-                  )}
+                  <StatusBanners
+                    error={error}
+                    onClearError={() => setError(null)}
+                    credits={credits}
+                    creditBlocked={creditBlocked}
+                  />
                   <AgentCanvas
                     project={project}
                     latestJob={latestJob}
