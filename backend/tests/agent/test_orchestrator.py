@@ -39,7 +39,8 @@ def test_orchestrator_advance_action():
     events = list(orch.run_action(session, project, action))
     assert session.step == "script"
     assert session.pending_user_confirmation is True
-    assert any('"type": "token"' in e and '"text": "Moving on"' in e for e in events)
+    # response_to_user is emitted by AgentSession.run, not run_action.
+    assert not any('"type": "token"' in e for e in events)
 
 
 def test_orchestrator_advance_requires_target_step():
@@ -78,7 +79,8 @@ def test_orchestrator_reset_action():
     assert session.step == "understand"
     assert session.payload == {}
     assert session.pending_user_confirmation is True
-    assert any('"type": "token"' in e and '"text": "Restarting"' in e for e in events)
+    # response_to_user is emitted by AgentSession.run, not run_action.
+    assert not any('"type": "token"' in e for e in events)
 
 
 def test_orchestrator_reset_uses_default_message():
@@ -87,7 +89,8 @@ def test_orchestrator_reset_uses_default_message():
     orch = Orchestrator()
     action = AgentAction(action="reset")
     events = list(orch.run_action(session, project, action))
-    assert any('"type": "token"' in e and "重新开始" in e for e in events)
+    # Default message is handled by AgentSession.run when response_to_user is empty.
+    assert not any('"type": "token"' in e for e in events)
 
 
 def test_orchestrator_unknown_action():
@@ -101,33 +104,31 @@ def test_orchestrator_unknown_action():
     assert "Unknown action fly" in "".join(events)
 
 
-def test_orchestrator_render_action_passes_db_and_user():
+def test_orchestrator_render_action_passes_user():
     session = AgentSession("p1")
     project = MagicMock()
-    db = MagicMock()
     user = MagicMock()
     orch = Orchestrator()
     mock_tool = MagicMock(return_value=iter(['{"type": "done"}']))
     with patch.dict(orch.tools, {"render": mock_tool}):
         action = AgentAction(action="render", response_to_user="Rendering")
-        list(orch.run_action(session, project, action, "render it", db=db, user=user))
+        list(orch.run_action(session, project, action, "render it", user=user))
     mock_tool.assert_called_once()
     call_args = mock_tool.call_args
     assert call_args.args[0] is project
     assert call_args.args[1] == session.to_dict()
     assert call_args.args[2] == "render it"
-    assert call_args.args[3] is db
-    assert call_args.args[4] is user
+    assert call_args.args[3] is user
 
 
-def test_orchestrator_render_action_missing_db_or_user():
+def test_orchestrator_render_action_missing_user():
     session = AgentSession("p1")
     project = MagicMock()
     orch = Orchestrator()
     action = AgentAction(action="render", response_to_user="Rendering")
     events = list(orch.run_action(session, project, action, "render it"))
     assert '"type": "error"' in "".join(events)
-    assert "missing db or user" in "".join(events)
+    assert "missing user" in "".join(events)
 
 
 def test_orchestrator_run_tool_missing_tool():

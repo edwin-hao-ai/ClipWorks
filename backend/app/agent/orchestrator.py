@@ -51,6 +51,12 @@ def parse_action_json(text: str) -> Optional[AgentAction]:
         data = json.loads(block)
     except json.JSONDecodeError:
         return None
+    if not isinstance(data, dict):
+        return None
+    # The LLM sometimes emits null for optional string fields; coerce to defaults.
+    for key in ("response_to_user", "confirmation_message"):
+        if data.get(key) is None:
+            data[key] = ""
     try:
         return AgentAction(**data)
     except Exception as exc:
@@ -77,17 +83,21 @@ class Orchestrator:
             for chunk in self.client.chat_completion_stream(
                 ARCHITECT_SYSTEM_PROMPT,
                 [{"role": "user", "content": context}],
-                temperature=0.7,
+                temperature=1.0,
             ):
                 full_text += chunk
         except Exception as exc:
-            logger.warning("Architect LLM failed: %s", exc)
+            logger.warning("Architect LLM failed: %s", exc, exc_info=True)
             return AgentAction(
                 action="ask",
                 response_to_user="我没听清，能再说一下你的需求吗？",
                 confirmation_message="能再说一下你的需求吗？",
             )
-        return parse_action_json(full_text)
+        logger.debug("Architect raw output: %s", full_text)
+        action = parse_action_json(full_text)
+        if action is None:
+            logger.warning("Could not parse architect output: %s", full_text)
+        return action
 
     def run_action(
         self,
@@ -95,7 +105,6 @@ class Orchestrator:
         project,
         action: AgentAction,
         user_input: str | None = None,
-        db=None,
         user=None,
     ) -> Iterator[str]:
         if action.action == "ask":
@@ -121,7 +130,8 @@ class Orchestrator:
                 return
             session.set_step(target)
             session.mark_waiting(True)
-            yield sse_text(action.response_to_user)
+            # response_to_user is already emitted by AgentSession.run before
+            # delegating to run_action; emitting it again duplicates tokens.
             return
 
         if action.action == "revise":
@@ -139,14 +149,14 @@ class Orchestrator:
                 yield sse_event("error", {"message": "No tool for render"})
                 return
             session.mark_waiting(False)
-            yield from tool(project, session.to_dict(), user_input, db, user)
+            yield from tool(project, session.to_dict(), user_input, user)
             return
 
         if action.action == "reset":
             session.set_step("understand")
             session.payload = {}
             session.mark_waiting(True)
-            yield sse_text(action.response_to_user or "好的，我们重新开始。")
+            # response_to_user is already emitted by AgentSession.run.
             return
 
         yield sse_event("error", {"message": f"Unknown action {action.action}"})

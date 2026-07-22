@@ -252,7 +252,69 @@ def test_full_auto_advance_runs_without_confirmation():
         requires_confirmation=True,
     )
 
-    events = list(session.run(project, "hi", orch))
+    gen = session.run(project, "hi", orch)
+    events = []
+    for _ in range(2):
+        try:
+            events.append(next(gen))
+        except StopIteration:
+            break
+
     assert not any('"type": "question"' in e for e in events)
     assert session.step == "script"
     assert session.messages[-1] == {"role": "assistant", "content": "Moving on"}
+
+
+def test_run_loop_auto_advances_after_tool_payload_exists():
+    """If the LLM repeatedly asks to run_tool for a step whose payload is
+    already generated, the session must auto-advance instead of looping."""
+    from unittest.mock import MagicMock, patch
+
+    session = AgentSession(
+        "p1",
+        state={
+            "step": "scenes",
+            "payload": {"scenes": {"scenes": [{"start": 0, "duration": 5}]}},
+            "autonomy_level": "full_auto",
+        },
+    )
+    project = _make_project()
+    orch = Orchestrator()
+
+    # Architect misbehaves and keeps trying to re-run scenes.
+    orch.decide_action = lambda context: AgentAction(
+        action="run_tool",
+        target_step="scenes",
+        response_to_user="rerun scenes",
+    )
+
+    effects_run = False
+    render_run = False
+
+    def fake_effects(project, state, user_input):
+        nonlocal effects_run
+        effects_run = True
+        state.setdefault("payload", {})["effects"] = {"effects": []}
+        yield sse_event("artifact", {"kind": "effects", "data": {"effects": []}})
+        yield sse_done()
+
+    def fake_render(project, state, user_input, user):
+        nonlocal render_run
+        render_run = True
+        yield sse_event("artifact", {"kind": "render", "data": {"job_id": "job-1"}})
+        yield sse_done()
+
+    with patch.dict(
+        orch.tools,
+        {
+            "scenes": MagicMock(return_value=iter([sse_done()])),
+            "effects": fake_effects,
+            "render": fake_render,
+        },
+    ):
+        events = list(session.run(project, "continue", orch))
+
+    assert effects_run, "effects tool should have been run after auto-advance"
+    assert render_run, "render tool should finish the workflow"
+    assert session.step == "done", "should finish after render"
+    assert not any('"type": "error"' in e for e in events)

@@ -6,6 +6,10 @@ if TYPE_CHECKING:
     from app.agent.orchestrator import Orchestrator
 
 
+# Ordered workflow steps for the vibe-video agent loop.
+ORDERED_STEPS = ["understand", "script", "assets", "scenes", "effects", "render", "done"]
+
+
 class AutonomyLevel(str, Enum):
     CONFIRM_EACH = "confirm_each"
     CONFIRM_RENDER_ONLY = "confirm_render_only"
@@ -36,7 +40,10 @@ class AgentSession:
     ):
         self.project_id = project_id
         loaded = state or {}
-        self.step = loaded.get("step", "understand")
+        # Projects created through the legacy wizard default to step "idle".
+        # The Vibe workflow always starts at "understand".
+        raw_step = loaded.get("step", "understand")
+        self.step = raw_step if raw_step and raw_step != "idle" else "understand"
         self.payload = loaded.get("payload", {})
         self.messages = loaded.get("messages", [])
         # 默认 full_auto：确认模式目前无 UI 入口，确认 each 会导致默认死锁。
@@ -64,6 +71,21 @@ class AgentSession:
     def mark_waiting(self, waiting: bool = True) -> None:
         self.pending_user_confirmation = waiting
 
+    def _next_step(self, step: str) -> Optional[str]:
+        """Return the step that follows ``step`` in the ordered workflow."""
+        try:
+            idx = ORDERED_STEPS.index(step)
+        except ValueError:
+            return None
+        return ORDERED_STEPS[idx + 1] if idx + 1 < len(ORDERED_STEPS) else None
+
+    def _step_has_payload(self) -> bool:
+        """Return True when the current step already has generated content."""
+        data = self.payload.get(self.step)
+        if isinstance(data, dict):
+            return bool(data)
+        return bool(data)
+
     def _should_auto_confirm(self, action: "AgentAction") -> bool:
         """Return True when the configured autonomy level allows skipping confirmation."""
         if self.autonomy_level == AutonomyLevel.FULL_AUTO:
@@ -77,7 +99,6 @@ class AgentSession:
         project,
         user_message: str,
         orchestrator: "Orchestrator",
-        db=None,
         user=None,
     ) -> Iterator[str]:
         """Run the agent session loop.
@@ -92,12 +113,49 @@ class AgentSession:
 
         max_actions = 30
         for i in range(max_actions):
-            context = self._build_architect_context(project, user_message if i == 0 else "")
+            context = self._build_architect_context(project, user_message)
             action = orchestrator.decide_action(context)
             if not action:
                 self.mark_waiting(True)
                 yield sse_text("我没理解你的意思，能再说详细一点吗？")
                 return
+
+            # Guard against an LLM that tries to re-run a step whose payload
+            # already exists, or that tries to run a tool out of order.  The
+            # workflow progression is deterministic: generate payload, then
+            # advance.  We override the architect here instead of trusting it.
+            if action.action == "run_tool":
+                if self.step == "render":
+                    # The render step needs the special render action (it passes
+                    # db/user to the render tool).  Treat run_tool(render) as
+                    # render so the workflow can finish.
+                    from app.agent.orchestrator import AgentAction
+
+                    action = AgentAction(
+                        action="render",
+                        target_step="render",
+                        response_to_user=action.response_to_user or "开始渲染。",
+                    )
+                elif self._step_has_payload():
+                    next_step = self._next_step(self.step)
+                    if next_step:
+                        from app.agent.orchestrator import AgentAction
+
+                        action = AgentAction(
+                            action="advance",
+                            target_step=next_step,
+                            response_to_user=f"{self.step} 已完成，继续下一步。",
+                        )
+                elif action.target_step and action.target_step != self.step:
+                    # Force the tool to target the current step.
+                    action.target_step = self.step
+
+            # Ensure advance always moves to the correct next step, even if the
+            # LLM hallucinates the wrong target_step.
+            if action.action == "advance":
+                expected_next = self._next_step(self.step)
+                if expected_next and action.target_step != expected_next:
+                    action.target_step = expected_next
 
             if action.response_to_user:
                 yield sse_text(action.response_to_user)
@@ -121,7 +179,7 @@ class AgentSession:
                 self.append_message("assistant", action.response_to_user)
                 return
 
-            yield from orchestrator.run_action(self, project, action, user_message if i == 0 else "", db=db, user=user)
+            yield from orchestrator.run_action(self, project, action, user_message if i == 0 else "", user=user)
             self.append_message("assistant", action.response_to_user)
 
             if action.action == "render":

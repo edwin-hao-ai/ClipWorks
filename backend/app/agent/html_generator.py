@@ -755,8 +755,21 @@ def _fallback_scene_html(scene: dict, composition: dict, assets: dict) -> str:
 </html>"""
 
 
-def generate_scene_html(scene: dict, composition: dict, assets: Optional[dict] = None) -> str:
-    """为单个 scene 生成自包含 HTML；LLM 失败时走确定性降级模板。"""
+def generate_scene_html(
+    scene: dict,
+    composition: dict,
+    assets: Optional[dict] = None,
+    *,
+    max_retries: int = 1,
+    timeout: float = 90,
+) -> str:
+    """为单个 scene 生成自包含 HTML；LLM 失败时走确定性降级模板。
+
+    Args:
+        max_retries: OpenAI 内部重试次数。批量并发生成时建议设为 0，
+                     让连接异常快速失败并切到确定性模板，避免单个 scene 拖垮整个 worker。
+        timeout: LLM 调用超时（秒）。
+    """
     assets = assets or {}
     duration = float(scene.get("duration", 5) or 5)
     if duration <= 0:
@@ -768,12 +781,12 @@ def generate_scene_html(scene: dict, composition: dict, assets: Optional[dict] =
         "Available image assets (local paths):\n" + json.dumps(assets.get("images", {}), ensure_ascii=False, indent=2)
     )
     try:
-        client = KimiClient(timeout=90, max_retries=1)
+        client = KimiClient(timeout=timeout, max_retries=max_retries)
         raw = client.chat_completion(
             system_prompt=GENERATE_SCENE_HTML,
             user_prompt=prompt,
             json_mode=False,
-            max_retries=1,
+            max_retries=max_retries,
         )
         if raw and "<" in raw:
             html = raw.strip()
@@ -787,6 +800,8 @@ def generate_scene_html(scene: dict, composition: dict, assets: Optional[dict] =
             html = html.strip()
             if html.startswith(("<!DOCTYPE html>", "<html")):
                 logger.info("Generated scene HTML via LLM")
+                if not html.startswith("<!DOCTYPE html>"):
+                    html = f"<!DOCTYPE html>\n{html}"
                 return html
     except Exception as exc:
         logger.info("LLM scene HTML generation failed: %s", exc)

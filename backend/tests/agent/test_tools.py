@@ -108,24 +108,27 @@ def test_run_assets_uses_step_generator():
     assert any('"type": "artifact"' in e and '"kind": "assets"' in e for e in result)
 
 
-def test_run_render_errors_without_db_or_user():
+def test_run_render_errors_without_user():
     project = MagicMock()
     state = {"payload": {}}
     events = list(run_render(project, state, "render it"))
-    assert any('"type": "error"' in e and "missing db or user" in e for e in events)
+    assert any('"type": "error"' in e and "missing user" in e for e in events)
 
 
 def test_run_render_errors_when_user_has_no_credits():
     project = MagicMock()
     state = {"payload": {}}
-    db = MagicMock()
     user = MagicMock()
     user.id = "user-1"
     user.credits = 0
-    with patch("app.agent.tools.deduct_credits", return_value=False):
-        events = list(run_render(project, state, "render it", db=db, user=user))
+    mock_session = MagicMock()
+    mock_session.__enter__.return_value = mock_session
+    mock_session.merge.return_value = project
+    with patch("app.database.SessionLocal", return_value=mock_session):
+        with patch("app.agent.tools.deduct_credits", return_value=False):
+            events = list(run_render(project, state, "render it", user=user))
     assert any('"type": "error"' in e and "额度不足" in e for e in events)
-    db.add.assert_not_called()
+    mock_session.add.assert_not_called()
 
 
 def test_run_render_creates_job_and_enqueues_task():
@@ -147,25 +150,29 @@ def test_run_render_creates_job_and_enqueues_task():
             "assets": {"needed": [{"description": "img1"}]},
         }
     }
-    db = MagicMock()
     user = MagicMock()
     user.id = "user-1"
     user.credits = 5
 
+    mock_session = MagicMock()
+    mock_session.__enter__.return_value = mock_session
+    mock_session.merge.return_value = project
+
     def fake_refresh(job):
         job.id = "job-1"
 
-    db.refresh.side_effect = fake_refresh
+    mock_session.refresh.side_effect = fake_refresh
 
-    with patch("app.agent.tools.deduct_credits", return_value=True) as mock_deduct:
-        with patch("app.agent.tools.render_video_task") as mock_task:
-            events = list(run_render(project, state, "render it", db=db, user=user))
+    with patch("app.database.SessionLocal", return_value=mock_session):
+        with patch("app.agent.tools.deduct_credits", return_value=True) as mock_deduct:
+            with patch("app.agent.tools.render_video_task") as mock_task:
+                events = list(run_render(project, state, "render it", user=user))
 
-    mock_deduct.assert_called_once_with(db, "user-1", amount=1)
-    db.add.assert_called_once()
-    db.commit.assert_called()
-    db.refresh.assert_called_once()
-    job = db.add.call_args.args[0]
+    mock_deduct.assert_called_once_with(mock_session, "user-1", amount=1)
+    mock_session.add.assert_called_once()
+    mock_session.commit.assert_called()
+    mock_session.refresh.assert_called_once()
+    job = mock_session.add.call_args.args[0]
     assert job.project_id == "proj-1"
     assert job.status == "queued"
     assert project.status == "generating"

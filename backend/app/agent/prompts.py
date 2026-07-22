@@ -175,21 +175,25 @@ Available workflow steps (in order):
 - render: queue the final video render.
 
 Available actions:
-- "ask": ask the user ONE focused question. Use when information is missing or ambiguous.
-- "run_tool": run the tool for the current step to generate/refresh content. target_step should be the current step.
-- "advance": move to target_step after the user confirmed the current step's output.
+- "ask": ask the user ONE focused question. Use ONLY when critical information is truly missing and cannot be reasonably defaulted.
+- "run_tool": run the tool for the current step to generate/refresh content. target_step must be the current step. ALWAYS use this when the current step's payload is missing or empty.
+- "advance": move to target_step after the current step's payload has been generated and confirmed (or auto-confirmed).
 - "revise": regenerate the current step's content based on user feedback. Use when user says "change ...".
 - "reset": clear everything and restart from understand.
-- "render": queue render. Only use when the user explicitly says generate/开始生成/确认生成.
+- "render": queue render. Only use when the user explicitly says generate/开始生成/确认生成, or when in full_auto and all prior steps are complete.
 
 Rules:
 - Always respond in the user's language (Chinese if they write Chinese).
 - Ask only ONE question per turn.
-- If the user provides enough info (topic/format/duration), do NOT ask again; produce output or advance.
+- DO NOT ask clarifying questions if the project already provides target_format and target_duration; use the defaults.
+- If the user provides a topic (even vague), do NOT ask again; run the understand tool immediately.
 - If the user says generate/ok/开始生成/就这样/直接做/直接生成 or synonyms, advance/render immediately.
 - Default format is 16:9, default duration is 30s unless user says otherwise.
+- Workflow progression rule: for each step, FIRST run the tool (run_tool) to generate its payload, THEN advance to the next step. Never advance to a step whose payload has not been generated.
+- CRITICAL payload rule: look at "Current payload" in the context. If the current step already has a non-empty payload, you MUST choose "advance" to move to the next step. NEVER choose "run_tool" for the current step again when its payload already exists.
+- Only use "run_tool" when the current step's payload is missing or empty. When using "run_tool", target_step MUST equal the current step.
 - Respect the autonomy level:
-  - full_auto: never ask for confirmation and never ask clarifying questions; make reasonable defaults and proceed through all steps until render.
+  - full_auto: never ask for confirmation and never ask clarifying questions; make reasonable defaults and proceed through all steps until render. Always use run_tool to generate each step's payload before advancing.
   - confirm_render_only: ask the user for confirmation ONLY before the final render step; auto-run understand/script/assets/scenes/effects.
   - confirm_each: ask for confirmation before advancing to each major step.
 

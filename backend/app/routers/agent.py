@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.agent import modify_video
 from app.agent.conversation import stream_planning_response, build_fallback_plan
 from app.agent.steps import ORDER, run_step, previous_step
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import Project, User, RenderJob
 from app.routers.auth import get_current_user
 from app.routers.compositions import build_composition_json
@@ -390,24 +390,45 @@ def vibe_chat_stream(
     from app.agent.session import AgentSession
     from app.agent.orchestrator import Orchestrator
 
+    # Detach the project from the request-scoped DB session and close it so the
+    # long-running SSE response does not hold a connection from the pool for
+    # minutes.  The stream will open short-lived sessions when it actually needs
+    # to write (render step / final persistence).
+    db.expunge(project)
+    db.close()
+
     vibe_lock = _get_vibe_lock(project_id)
 
     def event_stream():
         # 同一项目串行执行：防止并发流交错读取/写入 agent_state。
+        final_state: Optional[dict] = None
         with vibe_lock:
             state = dict(project.agent_state or {})
             session = AgentSession(project_id, state)
             orchestrator = Orchestrator()
             try:
-                for chunk in session.run(project, message, orchestrator, db=db, user=user):
+                for chunk in session.run(project, message, orchestrator, user=user):
                     yield chunk
             except Exception as exc:
                 logger.exception("Vibe loop failed")
                 yield f"data: {json.dumps({'type': 'error', 'message': str(exc)}, ensure_ascii=False)}\n\n"
             finally:
-                project.agent_state = session.to_dict()
-                db.commit()
+                final_state = session.to_dict()
                 yield f"data: {json.dumps({'type': 'done', 'step': session.step}, ensure_ascii=False)}\n\n"
+
+        # 用新 session 持久化状态，避免依赖已被 FastAPI 依赖上下文回收的 project/db 对象。
+        # 客户端断开时 generator 会被关闭，这里仍要保证状态落库。
+        if final_state is not None:
+            try:
+                with SessionLocal() as fresh_db:
+                    fresh_project = (
+                        fresh_db.query(Project).filter(Project.id == project_id).first()
+                    )
+                    if fresh_project is not None:
+                        fresh_project.agent_state = final_state
+                        fresh_db.commit()
+            except Exception as exc:
+                logger.exception("Failed to persist vibe agent_state for project %s", project_id)
 
     return StreamingResponse(
         event_stream(),
