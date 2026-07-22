@@ -264,17 +264,78 @@ def _collect_raw_assets(project: Project) -> list[str]:
     return paths
 
 
+def _minimal_fallback_html(project: Project, composition: dict) -> str:
+    """生成最小化确定性 HTML，确保 HTML 生成完全失败时任务仍可继续。"""
+    raw_title = project.title
+    title = raw_title if isinstance(raw_title, str) else "Untitled"
+    title = title.replace("<", "&lt;").replace(">", "&gt;")
+    width = int(composition.get("width", 1920))
+    height = int(composition.get("height", 1080))
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {{
+  margin: 0;
+  width: {width}px;
+  height: {height}px;
+  background: #0f0f0f;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: system-ui, -apple-system, sans-serif;
+}}
+h1 {{
+  font-size: {height * 0.08}px;
+  margin: 0 40px;
+  text-align: center;
+}}
+p {{
+  font-size: {height * 0.04}px;
+  opacity: 0.7;
+  margin-top: 20px;
+}}
+</style>
+</head>
+<body>
+<h1>{title}</h1>
+<p>视频生成未完成，请稍后重试。</p>
+</body>
+</html>"""
+
+
 def _write_project_html(
-    project_id: str,
+    project: Project,
     composition: dict,
     assets: dict,
     html_name: str = "index.html",
 ) -> tuple[str, str]:
-    """生成整片 HyperFrames HTML 并落盘，返回 (local_path, /api/static url)。"""
-    project_dir = os.path.join(ASSETS_DIR, project_id)
+    """生成整片 HyperFrames HTML 并落盘，返回 (local_path, /api/static url)。
+
+    若带 assets 生成失败，先尝试空 assets 兜底；再失败则使用最小化确定性 HTML，
+    确保 Celery 任务不会因 HTML 生成异常而崩溃。
+    """
+    project_dir = os.path.join(ASSETS_DIR, project.id)
     os.makedirs(project_dir, exist_ok=True)
     html_path = os.path.join(project_dir, html_name)
-    html = generate_html(composition, assets)
+
+    try:
+        html = generate_html(composition, assets)
+    except Exception as exc:
+        logger.warning("HTML generation failed for project=%s: %s", project.id, exc)
+        try:
+            html = generate_html(composition, {})
+        except Exception as fallback_exc:
+            logger.warning(
+                "Fallback HTML generation also failed for project=%s: %s",
+                project.id,
+                fallback_exc,
+            )
+            html = _minimal_fallback_html(project, composition)
+
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
     rel = os.path.relpath(html_path, ASSETS_DIR).replace(os.path.sep, "/")
@@ -386,20 +447,16 @@ def render_video_task(
         _html_url = ""
         try:
             _html_path, _html_url = _write_project_html(
-                project_id, comp_json, assets, html_name=f"index_{job.id}.html"
+                project, comp_json, assets, html_name=f"index_{job.id}.html"
             )
             job.html_output_path = _html_path
             job.html_output_url = _html_url
             _append_log(job, "HTML 预览已生成")
         except Exception as html_exc:
-            logger.warning("HTML generation failed for job=%s: %s", job_id, html_exc)
-            _append_log(job, f"HTML 生成失败：{str(html_exc)[:120]}，将使用兜底 HTML")
-            # Try once more with a minimal fallback HTML so rendering can still proceed.
-            _html_path, _html_url = _write_project_html(
-                project_id, comp_json, {}, html_name=f"index_{job.id}.html"
-            )
-            job.html_output_path = _html_path
-            job.html_output_url = _html_url
+            # _write_project_html 内部已完成多层兜底（assets -> 空 assets -> 确定性 HTML），
+            # 正常不应走到这里；记录后继续尝试渲染，避免任务完全无结果。
+            logger.exception("Unexpected HTML write failure for job=%s: %s", job_id, html_exc)
+            _append_log(job, f"HTML 写入异常：{str(html_exc)[:120]}，将尝试继续渲染")
 
         # 默认整片 HyperFrames 渲染；显式 engine 透传给 RenderService。
         selected_engine = engine or "hyperframes"
