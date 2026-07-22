@@ -12,47 +12,41 @@ logger = logging.getLogger(__name__)
 
 PROVIDERS = [
     HyperFramesProvider(),
-    RemotionProvider(),
     VideoUseProvider(),
+    RemotionProvider(),
     MockProvider(),
 ]
 
 
 class RenderService:
     def render(self, job, project, request: RenderRequest) -> RenderResult:
-        """Synchronous entry point that runs the async render pipeline via asyncio.run().
-
-        This method is intentionally synchronous so it can be called directly from
-        synchronous contexts such as Celery tasks. It internally executes the async
-        provider chain with asyncio.run().
-        """
         return asyncio.run(self._render_async(job, project, request))
 
     async def _render_async(self, job, project, request: RenderRequest) -> RenderResult:
         engine = request.engine or select_engine(request)
         provider_map = {p.name: p for p in PROVIDERS}
 
-        # 引擎只是「偏好」而非硬性约束：首选失败后，必须继续尝试其它真实引擎，
-        # 否则一旦首选引擎（如 hyperframes）在当前环境不可用，就会因为各 provider
-        # 的 can_handle 按 engine 名过滤而直接跌落到 Mock 占位片。
         order_names: list[str] = []
         preferred = engine
         if preferred == "hybrid":
+            # hybrid 保留旧行为：优先 remotion 总装，但 scene 仍由 HF 预渲染
             preferred = "remotion"
         if preferred in provider_map:
             order_names.append(preferred)
-        for name in ("remotion", "hyperframes"):
+
+        # 默认 hyperframes 失败后，按 video-use → remotion → mock 降级
+        for name in ("video-use", "remotion"):
             if name in provider_map and name not in order_names:
                 order_names.append(name)
-        # 其余已注册的真实引擎（含 video-use 或测试替身）按注册顺序补入；
-        # 由各 provider 的 can_handle 自行决定是否认领——video-use 的判定很保守，
-        # 仅当合成里确实存在本地视频素材 clip 时才会进入降级链。
+
+        # 其余真实引擎（含未加入的）按注册顺序补入
         for p in PROVIDERS:
             if p.name == "mock" or p.name in order_names:
                 continue
             if not p.can_handle(request):
                 continue
             order_names.append(p.name)
+
         if "mock" in provider_map and "mock" not in order_names:
             order_names.append("mock")
 
@@ -61,7 +55,6 @@ class RenderService:
         for name in order_names:
             provider = provider_map[name]
             result = await provider.render(job, project, request)
-            # 真实引擎若返回占位 sample.mp4，视为失败并继续降级；仅 mock 允许以占位收尾。
             is_real = name != "mock"
             placeholder = "sample.mp4" in (getattr(result, "output_url", None) or "")
             if result.success and not (is_real and placeholder):
