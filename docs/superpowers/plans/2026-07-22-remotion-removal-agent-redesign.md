@@ -73,7 +73,7 @@
 - Consumes: `RenderRequest` with optional `engine`, `engine_hint`, `raw_assets`, `user_prompt`
 - Produces: engine name string (`"hyperframes"`, `"video-use"`, or explicit engine)
 
-- [ ] **Step 1: 写失败测试验证默认不再是 hybrid**
+- [x] **Step 1: 写失败测试验证默认不再是 hybrid**
 
 ```python
 # backend/tests/rendering/test_engine_selector.py
@@ -85,7 +85,7 @@ def test_select_engine_defaults_to_hyperframes():
     assert select_engine(req) == "hyperframes"
 ```
 
-- [ ] **Step 2: 运行测试，确认失败**
+- [x] **Step 2: 运行测试，确认失败**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -95,7 +95,7 @@ pytest tests/rendering/test_engine_selector.py::test_select_engine_defaults_to_h
 
 Expected: FAIL (current default returns "hybrid")
 
-- [ ] **Step 3: 修改 engine_selector.py**
+- [x] **Step 3: 修改 engine_selector.py**
 
 ```python
 # backend/app/rendering/engine_selector.py
@@ -118,7 +118,7 @@ def select_engine(request: RenderRequest) -> str:
     return "hyperframes"
 ```
 
-- [ ] **Step 4: 运行测试，确认通过**
+- [x] **Step 4: 运行测试，确认通过**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -127,7 +127,7 @@ pytest tests/rendering/test_engine_selector.py -v
 
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -147,7 +147,7 @@ git commit -m "refactor(rendering): default engine is hyperframes, drop hybrid d
 - Consumes: `generate_html()` from `app.agent.html_generator`
 - Produces: `RenderJob` with `output_url`/`html_output_url` via `HyperFramesProvider`
 
-- [ ] **Step 1: 写测试验证渲染任务使用整片 HTML**
+- [x] **Step 1: 写测试验证渲染任务使用整片 HTML**
 
 ```python
 # backend/tests/test_render_task.py
@@ -188,7 +188,7 @@ def test_render_video_task_uses_whole_page_html(monkeypatch, db_session, sample_
     assert calls.get("hyperframes", 0) == 1
 ```
 
-- [ ] **Step 2: 运行测试，确认失败**
+- [x] **Step 2: 运行测试，确认失败**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -197,7 +197,7 @@ pytest tests/test_render_task.py::test_render_video_task_uses_whole_page_html -v
 
 Expected: FAIL
 
-- [ ] **Step 3: 修改 render_task.py**
+- [x] **Step 3: 修改 render_task.py**
 
 主要改动：
 1. 删除 `_write_scene_htmls`、`_prerender_scenes`、`_build_assembly_composition` 函数；
@@ -275,7 +275,7 @@ from app.rendering.providers.hyperframes import HyperFramesProvider
 
 因此 Step 3 简化为：删除 hybrid 专用函数和分支，直接生成整片 HTML 后调用 `RenderService.render()`。
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -284,7 +284,7 @@ pytest tests/test_render_task.py -v
 
 Expected: PASS（可能需要更新旧测试）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -304,7 +304,7 @@ git commit -m "refactor(render_task): whole-page HyperFrames render, remove hybr
 - Consumes: `RenderRequest`
 - Produces: `RenderResult` from `hyperframes` → `video-use` → `remotion`（显式时） → `mock`
 
-- [ ] **Step 1: 修改 service.py**
+- [x] **Step 1: 修改 service.py**
 
 保留 `RemotionProvider()` 在 `PROVIDERS` 列表中，但默认降级链仅在用户显式指定 `engine="remotion"` 或 `hybrid` 时才优先使用它。默认路径（`hyperframes`）失败时，降级到 `video-use`，再失败到 `mock`。
 
@@ -376,7 +376,7 @@ class RenderService:
         return RenderResult(success=False, error_message=last_error or "All providers failed")
 ```
 
-- [ ] **Step 2: 更新 hybrid provider 测试**
+- [x] **Step 2: 更新 hybrid provider 测试**
 
 ```python
 # backend/tests/rendering/test_hybrid_provider.py
@@ -430,7 +430,7 @@ def test_service_explicit_remotion_still_works(monkeypatch):
     assert result.output_url == "/api/static/remotion.mp4"
 ```
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -439,7 +439,7 @@ pytest tests/rendering/test_hybrid_provider.py tests/rendering/test_remotion_pro
 
 Expected: PASS
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -459,7 +459,7 @@ git commit -m "refactor(rendering): keep Remotion available but default chain is
 - `RemotionProvider` 继续可用，`can_handle` 在显式 `engine="remotion"` 时返回 True
 - `/render/remotion` 端点保留
 
-- [ ] **Step 1: 确认 RemotionProvider 行为**
+- [x] **Step 1: 确认 RemotionProvider 行为**
 
 `RemotionProvider.can_handle` 当前为：
 
@@ -477,7 +477,7 @@ def can_handle(self, request: RenderRequest) -> bool:
     return request.engine in ("remotion", "hybrid")
 ```
 
-- [ ] **Step 2: 更新 test_remotion_provider.py**
+- [x] **Step 2: 更新 test_remotion_provider.py**
 
 ```python
 # backend/tests/rendering/test_remotion_provider.py
@@ -495,11 +495,11 @@ async def test_remotion_provider_can_handle_explicit_engine():
     assert provider.can_handle(RenderRequest()) is False
 ```
 
-- [ ] **Step 3: 确认 renderer /render/remotion 端点保留**
+- [x] **Step 3: 确认 renderer /render/remotion 端点保留**
 
 不需要删除 `services/renderer/main.py` 中的 `/render/remotion` 端点。只需确认它仍然存在且可调用。
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/backend
@@ -509,7 +509,7 @@ source .venv/bin/activate
 pytest tests/test_remotion.py -v
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -529,7 +529,7 @@ git commit -m "chore(remotion): keep Remotion provider available for explicit us
 - `/render/hyperframes` timeout 180s
 - `HyperFramesProvider.render` httpx timeout 200s
 
-- [ ] **Step 1: 修改 renderer main.py**
+- [x] **Step 1: 修改 renderer main.py**
 
 ```python
 # services/renderer/main.py
@@ -537,7 +537,7 @@ git commit -m "chore(remotion): keep Remotion provider available for explicit us
 out, err = proc.communicate(timeout=180)
 ```
 
-- [ ] **Step 2: 修改 HyperFramesProvider**
+- [x] **Step 2: 修改 HyperFramesProvider**
 
 ```python
 # backend/app/rendering/providers/hyperframes.py
@@ -545,7 +545,7 @@ out, err = proc.communicate(timeout=180)
 async with httpx.AsyncClient(timeout=200) as client:
 ```
 
-- [ ] **Step 3: 更新对应测试中的超时断言**
+- [x] **Step 3: 更新对应测试中的超时断言**
 
 ```python
 # services/renderer/tests/test_hyperframes.py
@@ -558,7 +558,7 @@ def test_render_hyperframes_timeout(...):
     ]
 ```
 
-- [ ] **Step 4: 运行测试**
+- [x] **Step 4: 运行测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/services/renderer
@@ -567,7 +567,7 @@ cd /Users/edwinhao/ClipWorks/backend
 pytest tests/rendering/test_hyperframes_provider.py -v
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -587,7 +587,7 @@ git commit -m "chore(hyperframes): extend timeout to 180s renderer / 200s backen
 - 使用现有 `AgentChat` 组件（mode="plan"）
 - 路由跳转到 `/projects/{id}`
 
-- [ ] **Step 1: 修改 page.tsx**
+- [x] **Step 1: 修改 page.tsx**
 
 ```tsx
 // frontend/src/app/page.tsx
@@ -676,7 +676,7 @@ export default function HomePage() {
 }
 ```
 
-- [ ] **Step 2: 运行前端测试**
+- [x] **Step 2: 运行前端测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/frontend
@@ -685,7 +685,7 @@ npm test -- --run
 
 Expected: 现有测试可能失败，需要更新 snapshot 或测试。
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -708,7 +708,7 @@ git commit -m "feat(ui): homepage as Agent conversation entry"
 - 中间 `<AgentCanvas project={...} />`（预览 + 故事板）
 - 右侧 `<TimelinePanel composition={...} />`
 
-- [ ] **Step 1: 新建 TimelinePanel.tsx**
+- [x] **Step 1: 新建 TimelinePanel.tsx**
 
 ```tsx
 // frontend/src/components/project/TimelinePanel.tsx
@@ -770,7 +770,7 @@ export function TimelinePanel({ composition }: TimelinePanelProps) {
 }
 ```
 
-- [ ] **Step 2: 修改 projects/[id]/page.tsx 为三栏布局**
+- [x] **Step 2: 修改 projects/[id]/page.tsx 为三栏布局**
 
 保留现有数据获取逻辑，调整布局为：
 
@@ -786,14 +786,14 @@ export function TimelinePanel({ composition }: TimelinePanelProps) {
 </div>
 ```
 
-- [ ] **Step 3: 运行前端测试**
+- [x] **Step 3: 运行前端测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/frontend
 npm test -- --run
 ```
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -816,7 +816,7 @@ git commit -m "feat(ui): workspace three-column layout (chat / canvas / timeline
 - `PlanApproval`：展示 pending plan，提供 Approve/Reject
 - `StoryboardStrip`：展示 scenes 缩略图，点击选中
 
-- [ ] **Step 1: 新建 IntentCard.tsx**
+- [x] **Step 1: 新建 IntentCard.tsx**
 
 ```tsx
 // frontend/src/components/project/IntentCard.tsx
@@ -847,7 +847,7 @@ export function IntentCard({ intent, onConfirm, onEdit }: IntentCardProps) {
 }
 ```
 
-- [ ] **Step 2: 新建 PlanApproval.tsx（复用 AgentChat 中已有逻辑）**
+- [x] **Step 2: 新建 PlanApproval.tsx（复用 AgentChat 中已有逻辑）**
 
 将 `AgentChat.tsx` 中 pending plan 的 UI 抽取为独立组件，保持相同 props：
 
@@ -889,7 +889,7 @@ export function PlanApproval({ plan, onApprove, onReject, loading }: PlanApprova
 }
 ```
 
-- [ ] **Step 3: 新建 StoryboardStrip.tsx**
+- [x] **Step 3: 新建 StoryboardStrip.tsx**
 
 ```tsx
 // frontend/src/components/project/StoryboardStrip.tsx
@@ -927,7 +927,7 @@ export function StoryboardStrip({ scenes, currentIndex, onSelect }: StoryboardSt
 }
 ```
 
-- [ ] **Step 4: 修改 AgentCanvas.tsx 引入 StoryboardStrip 和预览**
+- [x] **Step 4: 修改 AgentCanvas.tsx 引入 StoryboardStrip 和预览**
 
 ```tsx
 // frontend/src/components/project/AgentCanvas.tsx
@@ -964,14 +964,14 @@ export function AgentCanvas({ project }: AgentCanvasProps) {
 }
 ```
 
-- [ ] **Step 5: 运行前端测试**
+- [x] **Step 5: 运行前端测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/frontend
 npm test -- --run
 ```
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -992,7 +992,7 @@ git commit -m "feat(ui): add intent card, plan approval, storyboard strip compon
 - `ExportSettings`：分辨率/时长/质量/导出位置 + 进度
 - `GenerationPanel`：已支持 SSE，只需调整按钮文案和错误状态
 
-- [ ] **Step 1: 新建 ExportSettings.tsx**
+- [x] **Step 1: 新建 ExportSettings.tsx**
 
 ```tsx
 // frontend/src/components/project/ExportSettings.tsx
@@ -1109,11 +1109,11 @@ export function ExportSettings({ project, latestJob, onStart }: ExportSettingsPr
 
 注意：`GenerationPanel` 需要 `steps` / `currentStepIndex` / `currentDescription` props，这里传空数组是因为新版 GenerationPanel 内部可以从 `job.logs` 推导。如果 GenerationPanel 必须接收这些 props，需要传入有意义的步骤列表。
 
-- [ ] **Step 2: 修改 GenerationPanel 支持无 steps 模式**
+- [x] **Step 2: 修改 GenerationPanel 支持无 steps 模式**
 
 如果 `steps` 为空，从 `job.logs` 推导当前步骤。或保持原接口不变。
 
-- [ ] **Step 3: 在工作区 page.tsx 中打开 ExportSettings 弹窗/抽屉**
+- [x] **Step 3: 在工作区 page.tsx 中打开 ExportSettings 弹窗/抽屉**
 
 ```tsx
 const [showExport, setShowExport] = useState(false);
@@ -1121,19 +1121,126 @@ const [showExport, setShowExport] = useState(false);
 {showExport && <ExportSettings ... />}
 ```
 
-- [ ] **Step 4: 运行前端测试**
+- [x] **Step 4: 运行前端测试**
 
 ```bash
 cd /Users/edwinhao/ClipWorks/frontend
 npm test -- --run
 ```
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
 git add frontend/src/components/project/ExportSettings.tsx frontend/src/components/project/GenerationPanel.tsx frontend/src/app/projects/\[id\]/page.tsx
 git commit -m "feat(ui): export settings panel with integrated generation progress"
+```
+
+---
+
+## Task 11: HyperFrames 渲染参数透传与轻量模式
+
+**Files:**
+- Modify: `backend/app/rendering/provider.py`
+- Modify: `backend/app/rendering/providers/hyperframes.py`
+- Modify: `backend/app/tasks/render_task.py`
+- Modify: `services/renderer/main.py`
+- Modify: `frontend/src/components/project/ExportSettings.tsx`（可选，把 quality 映射到 HF 参数）
+
+**Interfaces:**
+- `RenderRequest` 增加可选字段：`quality` (`draft` | `standard` | `high`), `fps`, `format`, `resolution`, `workers`。
+- `HyperFramesProvider` 把这些字段放入 HTTP 请求体。
+- renderer `/render/hyperframes` 构造 CLI 参数时加入 `--quality`、`--fps`、`--format`、`--resolution`、`--workers`。
+- 在 8GB 服务器默认使用 `--low-memory-mode --workers 1`；用户选择「高清/4K」时透传对应参数。
+
+- [x] **Step 1: 扩展 `RenderRequest` 与 `HyperFramesRequest`**
+
+```python
+# backend/app/rendering/provider.py
+from typing import Optional
+
+class RenderRequest:
+    ...
+    quality: Optional[str] = None
+    fps: Optional[int] = None
+    format: Optional[str] = None  # mp4/webm/mov
+    resolution: Optional[str] = None  # landscape/portrait/square/1080p/4k
+    workers: Optional[int] = None
+```
+
+```python
+# services/renderer/main.py
+class HyperFramesRequest(BaseModel):
+    html_path: str
+    output_path: str
+    quality: Optional[str] = "standard"
+    fps: Optional[int] = 30
+    format: Optional[str] = "mp4"
+    resolution: Optional[str] = None
+    workers: Optional[int] = None
+    low_memory_mode: bool = False
+```
+
+- [x] **Step 2: 修改 `HyperFramesProvider` 透传参数**
+
+```python
+# backend/app/rendering/providers/hyperframes.py
+payload = {
+    "html_path": html_path,
+    "output_path": output_path,
+    "quality": request.quality or "standard",
+    "fps": request.fps or 30,
+    "format": request.format or "mp4",
+    "resolution": request.resolution,
+    "workers": request.workers,
+    "low_memory_mode": request.workers == 1,  # 小内存提示
+}
+```
+
+- [x] **Step 3: 修改 renderer `/render/hyperframes` 构造 CLI 参数**
+
+```python
+# services/renderer/main.py
+cmd = [
+    "npx", "hyperframes", "render",
+    html_dir, req.output_path,
+    "--quality", req.quality,
+    "--fps", str(req.fps),
+    "--format", req.format,
+]
+if req.resolution:
+    cmd += ["--resolution", req.resolution]
+if req.workers is not None:
+    cmd += ["--workers", str(req.workers)]
+if req.low_memory_mode:
+    cmd.append("--low-memory-mode")
+```
+
+- [x] **Step 4: 在 `render_task.py` 中填充参数**
+
+根据项目配置 / plan / 用户导出设置填充 `RenderRequest`：
+- 默认：`quality="standard"`, `workers=1`, `low_memory_mode=True`（适配 8GB 服务器）。
+- 用户选择「高清」-> `quality="high"`；「4K」-> `resolution="4k"`。
+- 项目 `fps` / `target_format` 透传。
+
+- [x] **Step 5: 运行测试**
+
+```bash
+cd /Users/edwinhao/ClipWorks/backend
+source .venv/bin/activate
+pytest tests/rendering/ tests/test_render_task.py -q
+
+cd /Users/edwinhao/ClipWorks/services/renderer
+source .venv/bin/activate
+pytest -q
+```
+
+- [x] **Step 6: 提交**
+
+```bash
+cd /Users/edwinhao/ClipWorks
+git add backend/app/rendering/provider.py backend/app/rendering/providers/hyperframes.py backend/app/tasks/render_task.py services/renderer/main.py
+git commit -m "feat(rendering): pass quality/fps/format/resolution/workers to HyperFrames CLI, default low-memory mode"
 ```
 
 ---
@@ -1144,8 +1251,9 @@ git commit -m "feat(ui): export settings panel with integrated generation progre
 - Modify: `README.md`
 - Modify: `AGENTS.md`
 - Modify: `docs/superpowers/specs/2026-07-16-hybrid-hyperframes-remotion-design.md`
+- Modify: `docs/superpowers/plans/2026-07-22-remotion-removal-agent-redesign.md`（标记 Task 11 完成）
 
-- [ ] **Step 1: 修改 README.md**
+- [x] **Step 1: 修改 README.md**
 
 ```markdown
 ## 渲染引擎
@@ -1157,18 +1265,18 @@ git commit -m "feat(ui): export settings panel with integrated generation progre
 - **Mock** — 占位预览，用于无真实引擎时的兜底。
 ```
 
-- [ ] **Step 2: 修改 AGENTS.md 渲染相关段落**
+- [x] **Step 2: 修改 AGENTS.md 渲染相关段落**
 
 更新第 2.3、3.3、7.4 等章节，移除 Remotion 作为默认引擎的描述，强调 HyperFrames 整片渲染和 Agent 超时/重试策略。
 
-- [ ] **Step 3: 标记旧 hybrid design doc 为废弃**
+- [x] **Step 3: 标记旧 hybrid design doc 为废弃**
 
 ```markdown
 > ⚠️ 已废弃：本文档描述的 hybrid（HF 分镜 + Remotion 总装）架构已不再使用。
 > 当前架构见 `2026-07-22-remotion-removal-agent-redesign.md`。
 ```
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
@@ -1193,6 +1301,7 @@ git commit -m "docs: update architecture docs for hyperframes-only rendering"
 | 关键确认点 | Task 8 |
 | 导出设置 + 进度 | Task 9 |
 | 文档更新 | Task 10 |
+| HyperFrames 渲染参数透传与轻量模式 | Task 11 |
 | streaming thinking | Task 6, 7, 8（复用现有 SSE） |
 
 ### Placeholder scan

@@ -1,8 +1,11 @@
+> ⚠️ 已废弃：本文档描述的 hybrid（HF 分镜 + Remotion 总装）架构已不再使用。
+> 当前架构见 `2026-07-22-remotion-removal-agent-redesign.md`。
+
 # ClipWorks Hybrid 渲染设计：HyperFrames 场景预渲染 + Remotion 总装
 
 > 日期：2026-07-16
-> 状态：已确认，待实施
-> 目标：每个视频场景同时利用 HyperFrames 的 HTML/CSS 动效表现力与 Remotion 的时间线、转场、音轨合成能力，输出专业级成片。
+> 状态：已废弃
+> 目标：（历史存档）每个视频场景同时利用 HyperFrames 的 HTML/CSS 动效表现力与 Remotion 的时间线、转场、音轨合成能力，输出专业级成片。
 
 ## 1. 背景与问题
 

@@ -45,10 +45,10 @@ ClipWorks/
 ### 2.3 渲染服务
 
 - **框架**：FastAPI + Python 3 / Node.js 22 混合容器
-- **引擎 1 - HyperFrames**：基于 Node.js 的 HTML/CSS 动画渲染（`npx hyperframes render`）
-- **引擎 2 - Remotion**：基于 React 组件的模板渲染（`@remotion/cli`）
-- **引擎 3 - video-use**：原始素材剪辑引擎。spec 驱动（clips 的 trim_start/trim_duration + 画幅 + 可选 BGM），一条 ffmpeg filter_complex 完成 trim/scale/pad/concat + BGM 混入，输出 H.264/AAC MP4；只依赖 ffmpeg，不需要 Chromium
-- **容器依赖**：ffmpeg、Chromium、Playwright
+- **引擎 1 - HyperFrames**：基于 Node.js 的 HTML/CSS 动画渲染（`npx hyperframes render`）。默认整片一次性出片；后端透传导出设置到 CLI 参数，包括 `--quality`、`--fps`、`--format`、`--resolution`、`--workers`，并默认启用 `--low-memory-mode --workers 1` 以适配 8GB 服务器
+- **引擎 2 - video-use**：原始素材剪辑引擎。spec 驱动（clips 的 trim_start/trim_duration + 画幅 + 可选 BGM），一条 ffmpeg filter_complex 完成 trim/scale/pad/concat + BGM 混入，输出 H.264/AAC MP4；只依赖 ffmpeg，不需要 Chromium
+- **引擎 3 - Remotion（保留但默认不使用）**：基于 React 组件的模板渲染（`@remotion/cli`），仅在用户或 `engine` 显式指定 `"remotion"` 时才会进入渲染链
+- **容器依赖**：ffmpeg、Chromium、Playwright（后两者主要服务 HyperFrames 与显式 Remotion）
 
 ### 2.4 基础设施
 
@@ -137,12 +137,12 @@ services/renderer/
 ├── main.py               # FastAPI 入口，/health + /render/* 端点
 ├── requirements.txt      # Python 依赖
 ├── requirements-dev.txt  # 含 pytest
-├── package.json          # HyperFrames + Remotion 依赖
+├── package.json          # HyperFrames 依赖（Remotion 代码保留但默认不启用）
 ├── Dockerfile            # Node 22 + Python + ffmpeg + Chromium 混合镜像
-├── patch-remotion.py     # 修复 Remotion Linux 单进程参数
+├── patch-remotion.py     # 修复 Remotion Linux 单进程参数（保留，显式使用时需要）
 ├── video_use/
 │   └── edit_video.py     # video-use 引擎：spec → ffmpeg 剪辑（render(spec) + CLI）
-├── remotion/             # Remotion 项目
+├── remotion/             # Remotion 项目（保留，显式 engine="remotion" 时使用）
 │   ├── package.json
 │   ├── remotion.config.ts
 │   └── src/
@@ -209,7 +209,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 npm install
-cd remotion && npm install && cd ..
+# 如需使用 Remotion（显式 engine="remotion"），再安装 Remotion 依赖：
+# cd remotion && npm install && cd ..
 playwright install chromium
 uvicorn main:app --reload --port 8001
 ```
@@ -247,8 +248,8 @@ pytest
 ### 6.4 端到端验证
 
 ```bash
-# Shell 脚本：创建项目 -> 触发 Remotion 渲染 -> 校验真实 MP4
-bash scripts/e2e_remotion.sh
+# Shell 脚本：创建项目 -> 触发 HyperFrames 整片渲染 -> 校验真实 MP4
+bash scripts/e2e_hyperframes.sh
 
 # Playwright 浏览器级 E2E（需本地栈运行）
 cd backend && source .venv/bin/activate && cd ..
@@ -306,21 +307,19 @@ python scripts/browser_e2e_check.py
   - `html_generator.py` -> `_fallback_html`
   - `modifier.py` -> `_deterministic_modify`（变红/字号/缩短/添加文字/删除末段/**画幅比例与竖横屏关键词**，按轴缩放 position 与字号，与 `render_task._apply_target_format` 同逻辑）-> LLM -> `_unsupported_reply`
 - **修改结果带 `changed` 标记**：确定性/LLM 路径为 `True`，`_unsupported_reply` 为 `False`。agent 路由在 `changed=False` 时**不入队渲染、不扣额度**（避免「说了没改却照样出片」的假成功）；确定性画幅路径回传 `target_format`，路由同步到项目设置。
-- 渲染服务按优先级链尝试：用户指定引擎 -> 默认引擎 -> 其他可处理引擎（以各 provider 的 `can_handle(request)` 为准）-> `MockProvider`。`VideoUseProvider.can_handle` 保守判定：仅当合成里存在绑定真实视频素材（非图片）的 video 轨 clip 时才接手，模板型合成始终归 remotion。
-- `MockProvider` 会返回 `/api/static/sample.mp4`，用于无真实引擎时的兜底预览。
-- Remotion 使用的 Chromium（Playwright 自带）通常不带 H.264/MP3/AAC 等专有解码器，因此用户上传的 MP4/MOV/MP3 等素材在渲染前会被转成 Chromium 安全的开放格式：
-  - 后端 `app/services/media_proxy.py` 通过调用渲染服务的 `/render/proxy` 端点完成转码。
-  - 视频被转为 WebM VP8（`*.remotion.webm`），音频被转为 Ogg Vorbis（`*.remotion.ogg`）。
-  - 转码后的代理文件路径缓存在 `MediaAsset.metadata_` 的 `proxy_path` 字段中。
-- `compositions.py` 在更新合成时会根据 clip 的 `start_time + duration` 自动同步 `Composition.duration`，避免 Remotion 输出比实际素材更长的黑帧/静音尾帧。
+- 渲染服务按优先级链尝试：用户指定引擎 -> 默认引擎 -> 其他可处理引擎（以各 provider 的 `can_handle(request)` 为准）-> `MockProvider`。**默认引擎为 `hyperframes`**；`VideoUseProvider.can_handle` 保守判定：仅当合成里存在绑定真实视频素材（非图片）的 video 轨 clip 时才接手，模板型合成始终归 HyperFrames。Remotion 仅在 `request.engine` 显式为 `"remotion"` 或 `"hybrid"` 时才会被加入降级链，代码保留但不在默认路径。
+- `MockProvider` 会返回 `/api/static/sample.mp4`，用于无真实引擎时的兜底预览，并在前端明确标注为占位预览。
+- HyperFrames 同样依赖 Chromium 渲染 HTML/CSS；如需转码用户上传的专有格式素材，后端 `app/services/media_proxy.py` 调用渲染服务 `/render/proxy` 端点生成 ffmpeg 可处理的代理文件。Remotion 已不在默认路径，其专用的 `*.remotion.webm` / `*.remotion.ogg` 代理仅在显式使用 Remotion 时生成。
+- `compositions.py` 在更新合成时会根据 clip 的 `start_time + duration` 自动同步 `Composition.duration`，避免输出比实际素材更长的黑帧/静音尾帧。
 - **富方案（rich plan）**：`prompts.py` 的规划提示词要求 LLM 产出叙事弧线 + 逐镜 `narration / transition / lower_third / visual_type(product|broll|metaphor|text) / shot`；`composer.py` 将这些字段原样写进 clip 的 `style`。`DEFAULT_PLAN` 与 `_fallback_composition` 同样富化，保证无 LLM 时成片仍有转场/角标/旁白。
-- **GenericComp 渲染语法**：`services/renderer/remotion/src/compositions/GenericComp.tsx` 承接富 schema：逐镜 `sceneTransition`（fade/slide/zoom）、品牌色边线 `LowerThird` 胶囊、图片 Ken Burns 缓推、文本 clip 与视觉 clip 的 lower_third 精确去重（含 overlay 轨重复角标与文本 clip 自带 lower_third 的三处去重，LLM 时间线常把同一角标写进三个地方）。旧合成（无新字段）向后兼容，按默认 fade 渲染。
+- **HyperFrames 渲染语法**：整片 HTML 由 `html_generator.py` 生成，富 schema 中的 `sceneTransition`、`lower_third`、`visual_type`、`shot` 等字段被映射为 HTML/CSS 动画与结构；`services/renderer/remotion/src/compositions/GenericComp.tsx` 及 Remotion 相关渲染语法仅在显式使用 Remotion 时生效，默认不再进入渲染链。
 - **旁白 TTS 降级链**（`app/services/tts.py`）：OpenAI 兼容 TTS（`OPENAI_API_KEY` / `TTS_API_KEY`）-> edge-tts 微软在线语音（免密钥、音质接近商用，需网络；`EDGE_TTS_VOICE` 默认 `zh-CN-XiaoxiaoNeural`）-> 本地 `espeak-ng -v cmn`（离线、确定性、机械音）-> BGM-only。`synthesize_narration` 逐段遍历整条链，首选提供者运行期失败自动落到下一个，不会让旁白整段消失。`audio_track.py` 负责把逐镜旁白与程序化 BGM 闪避混音（sidechaincompress），旁白总线先 `apad,atrim` pad 到全片时长再闪避，否则成片音轨会被截断。音轨文件固定为 `soundtrack.wav`，`build_soundtrack` 落库时按 `project_id+local_path` 复用已有 MediaAsset 行——重复渲染不会在素材库堆积同名音轨。
-- **worker 并发与进度**：docker-compose 中 worker 以 `--concurrency=2` 运行（注意：渲染在单线程 renderer 服务内串行，并发主要 overlap 规划/抓取与渲染等待）；`render_task.py` 在规划/抓取/合成/音轨/HTML/渲染/QA 各阶段写 10 档进度事件到 `RenderJob.logs`。
-- **Chromium 进程组收割**：渲染服务 `main.py` 的 Remotion/HyperFrames 调用均用 `start_new_session=True` 起进程组，失败/超时后 `_reap_process_group` 连 Chromium 孙进程一起 SIGKILL。Docker VM 内存 < 8GB 时，残留 Chromium 会让后续 BrowserRunner 全部超时并回退 mock——若渲染连续 fallback，先查 `docker stats` 与僵尸进程。建议 Docker Desktop 分配 ≥ 10GB。
-- `composer.py` 的 `build_composition` LLM 超时为 150s（富方案 JSON 较大，90s 会在并发时双双回退）。
+- **worker 并发与进度**：docker-compose 中 worker 默认 `--concurrency=1`（适配 8GB 服务器）；`render_task.py` 在规划/抓取/合成/音轨/HTML/渲染/QA 各阶段写 10 档进度事件到 `RenderJob.logs`。HyperFrames 渲染在 renderer 服务内串行执行，默认透传 `--low-memory-mode --workers 1` 给 CLI；导出设置中的 `quality`、`fps`、`format`、`resolution` 会映射为对应参数。
+- **超时配置**：`services/renderer/main.py` 中 HyperFrames 进程 `communicate(timeout=180)`；`backend/app/rendering/providers/hyperframes.py` 中 httpx 超时为 200s；`composer.py` 的 `build_composition` LLM 超时为 150s（富方案 JSON 较大，90s 会在并发时双双回退）。重试/降级策略由 Agent 层读取 `RenderJob.logs` 后决定，渲染层只报告失败。
+- **Chromium 进程组收割**：渲染服务 `main.py` 的 HyperFrames/Remotion 调用均用 `start_new_session=True` 起进程组，失败/超时后 `_reap_process_group` 连 Chromium 孙进程一起 SIGKILL。Docker VM 内存 < 8GB 时，残留 Chromium 会让后续 BrowserRunner 全部超时并回退 mock——若渲染连续 fallback，先查 `docker stats` 与僵尸进程。建议 Docker Desktop 分配 ≥ 10GB。
 - **规划时长归一化**：`planner.py` 的 `_normalize_plan` 在 LLM 规划出口把各镜 duration 按原比例缩放，使总和精确等于 `plan.duration`，并把 start 重排为从 0 开始的连续轴（尾镜吃满剩余消除舍入漂移）。LLM 产出的「总时长与镜头排布不一致」在此收口，成片时长即用户 brief 时长。
 - **画幅强制**：`plan_video(target_format=...)` 把项目画幅写进规划输入并在出口覆盖 `plan.format`；`render_task._apply_target_format` 作为安全网，在时间线落库前按轴比例缩放所有 clip 的 position（字号按纵向比例），LLM/已确认方案忽略画幅时也不会把 9:16 项目渲染成横屏。
+- **导出设置透传**：`frontend/src/components/project/ExportSettings.tsx` 中的分辨率/时长/质量选择通过渲染 API 传递给 `RenderRequest`；`HyperFramesProvider` 将其映射为 `--quality`、`--resolution`、`--fps`、`--format`、`--workers`、`--low-memory-mode` 等 CLI 参数。默认配置为 `quality="standard"`、`workers=1`、`low_memory_mode=True`，选择「高清」-> `quality="high"`，选择「4K」-> `resolution="4k"`。
 - **自动配图降级链**（`app/services/stock_images.py`）：素材不足 3 张时 `render_task._build_assets` 自动补图——Pexels 主题搜索（`PEXELS_API_KEY`，source='pexels'）-> Lorem Picsum 按 query+index 确定性 seed 真实照片（source='stock'）。检索词来自 plan 的 `assets_needed`，缺失时用用户 prompt。配图失败静默降级，绝不阻断渲染。配图落盘文件名按 URL 哈希生成（`img_<sha1前10位>`，见 `services/assets.download_image`）——早期统一写 `img.jpg` 会互相覆盖丢图；展示名取检索主题写入 `MediaAsset.metadata_.name`（picsum URL 末段是「1080」这类无意义字符，前端 `AssetGrid` 按 `metadata_.name` -> URL 末段（去查询串）-> 本地文件名 顺序取名）。注意 MediaAsset 的 JSON 键是 `metadata_`（ORM 属性名），而 Composition 接口显式映射为 `metadata`，两者不同。
 
 ### 7.5 前端演示数据（已移除）
@@ -378,7 +377,7 @@ python scripts/browser_e2e_check.py
 ## 10. 故障排查
 
 - **Celery 任务未执行**：检查 `REDIS_URL` 是否可达，worker 容器是否运行。
-- **渲染失败并 fallback 到 sample.mp4**：检查 renderer 服务健康 `/health`，确认 `hyperframes`/`remotion` 引擎可用。
+- **渲染失败并 fallback 到 sample.mp4**：检查 renderer 服务健康 `/health`，确认 `hyperframes`/`video-use` 引擎可用。若使用显式 Remotion，再检查 `/render/remotion` 端点。
 - **前端无法连接后端**：确认 `NEXT_PUBLIC_API_URL` 与后端实际地址一致，且浏览器未跨域。
 - **LLM 无响应或很慢**：检查 `KIMI_API_KEY` 是否有效；无效时会 fallback，但每个阶段会等待超时。
 - **Docker Desktop 跑测试/渲染中途自己退出（日志为 exit 0 干净关闭）**：内存压力——本机 8GB 物理内存而 Docker VM 上限仅 ~3.8GB，renderer 的 Chromium 单个渲染就要 2-4GB。应对：`open -a Docker` 重启后 `docker compose up -d` 恢复；跑全量 pytest 前先 `docker compose stop renderer worker` 降压（见 6.1）；平时关掉不用的重型应用。
