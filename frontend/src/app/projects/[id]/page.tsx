@@ -282,7 +282,7 @@ export default function ProjectWorkspacePage() {
     try {
       await api.post(`/projects/${id}/renders/generate`, {});
       setProject((prev) => (prev ? { ...prev, status: 'generating' } : prev));
-      setTimeout(() => refreshProject(), 300);
+      refreshProject();
     } catch (err) {
       const msg = err instanceof Error ? err.message : '重新渲染失败';
       if (msg.includes('402')) {
@@ -436,6 +436,30 @@ export default function ProjectWorkspacePage() {
                     </span>
                   )}
                 </Button>
+                {latestJob?.status === 'completed' && latestJob?.output_url && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={downloading.mp4}
+                    title="下载 MP4"
+                    onClick={() =>
+                      downloadFile(
+                        latestJob?.output_url,
+                        `${project.title || 'project'}.mp4`,
+                        'mp4'
+                      )
+                    }
+                  >
+                    {downloading.mp4 ? (
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Download className="w-4 h-4" />
+                        <span className="hidden sm:inline">下载 MP4</span>
+                      </span>
+                    )}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   onClick={() => setExportOpen(true)}
@@ -649,7 +673,7 @@ export default function ProjectWorkspacePage() {
           onClose={() => setExportOpen(false)}
           onStart={() => {
             setProject((prev) => (prev ? { ...prev, status: 'generating' } : prev));
-            setTimeout(() => refreshProject(), 300);
+            refreshProject();
           }}
         />
       )}

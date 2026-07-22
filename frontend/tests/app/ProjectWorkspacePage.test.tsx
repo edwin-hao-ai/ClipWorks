@@ -20,6 +20,7 @@ vi.mock('@/lib/api', () => ({
     put: vi.fn(),
   },
   streamJsonLines: vi.fn(),
+  API_URL: 'http://localhost:8000',
 }));
 
 vi.mock('@/stores/authStore', () => ({
@@ -97,6 +98,25 @@ describe.sequential('ProjectWorkspacePage', () => {
 
     render(<ProjectWorkspacePage />);
     expect(await screen.findByText('输出成片', undefined, { timeout: 3000 })).toBeInTheDocument();
+  });
+
+  it('shows direct download MP4 button when latest render job is completed with output_url', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === '/projects/test-id') {
+        return Promise.resolve(makeProject({ title: 'Ready Project', status: 'ready' }));
+      }
+      if (url === '/projects/test-id/assets/') return Promise.resolve([]);
+      if (url === '/projects/test-id/renders/') {
+        return Promise.resolve([
+          { id: 'job-1', status: 'completed', progress: 100, output_url: 'http://localhost:8000/api/static/test.mp4' },
+        ]);
+      }
+      return Promise.resolve({});
+    });
+
+    render(<ProjectWorkspacePage />);
+    const downloadBtn = await screen.findByRole('button', { name: /下载 MP4/i }, { timeout: 3000 });
+    expect(downloadBtn).toBeInTheDocument();
   });
 
   it('shows failure message for failed project', async () => {

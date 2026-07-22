@@ -116,14 +116,24 @@ describe('ExportSettings', () => {
     });
   });
 
-  it('shows validation error for invalid duration', async () => {
+  it('shows inline validation error and disables submit for invalid duration', async () => {
     renderOpen();
 
     fireEvent.change(screen.getByLabelText('目标时长（秒）'), { target: { value: '400' } });
-    fireEvent.click(screen.getByRole('button', { name: '开始导出' }));
 
-    const errorEl = await screen.findByTestId('export-error');
-    expect(errorEl).toHaveTextContent('目标时长需在 5–300 秒之间');
+    expect(screen.getByText('目标时长需在 5–300 秒之间')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '开始导出' })).toBeDisabled();
+    expect(api.put).not.toHaveBeenCalled();
+  });
+
+  it('shows inline validation error and disables submit when duration is empty', async () => {
+    renderOpen();
+
+    fireEvent.change(screen.getByLabelText('目标时长（秒）'), { target: { value: '' } });
+
+    expect(screen.getByLabelText('目标时长（秒）')).toHaveValue(null);
+    expect(screen.getByText('目标时长需在 5–300 秒之间')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '开始导出' })).toBeDisabled();
     expect(api.put).not.toHaveBeenCalled();
   });
 

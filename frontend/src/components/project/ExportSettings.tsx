@@ -45,6 +45,11 @@ export function ExportSettings({ project, open, onClose, onStart }: ExportSettin
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const parsedDuration =
+    targetDuration === '' ? NaN : typeof targetDuration === 'number' ? targetDuration : parseInt(targetDuration, 10);
+  const durationValid = !isNaN(parsedDuration) && parsedDuration >= 5 && parsedDuration <= 300;
+  const durationError = targetDuration === '' || !durationValid;
+
   // 打开时重置为当前项目值，避免残留旧状态。
   useEffect(() => {
     if (open) {
@@ -68,14 +73,9 @@ export function ExportSettings({ project, open, onClose, onStart }: ExportSettin
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
+    if (submitting || !durationValid) return;
 
-    const duration = typeof targetDuration === 'number' ? targetDuration : parseInt(targetDuration || '30', 10);
-    if (!duration || duration < 5 || duration > 300) {
-      setError('目标时长需在 5–300 秒之间');
-      return;
-    }
-
+    const duration = parsedDuration;
     setError(null);
     setSubmitting(true);
 
@@ -166,8 +166,20 @@ export function ExportSettings({ project, open, onClose, onStart }: ExportSettin
               type="number"
               value={targetDuration}
               onChange={(e) => setTargetDuration(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-              className="w-full bg-background-surface border border-border-default rounded-lg px-3 py-2 text-sm text-content-primary outline-none focus:border-brand-500 transition-colors"
+              aria-invalid={durationError}
+              aria-describedby={durationError ? 'export-duration-error' : undefined}
+              className={clsx(
+                'w-full bg-background-surface border rounded-lg px-3 py-2 text-sm text-content-primary outline-none focus:border-brand-500 transition-colors',
+                durationError
+                  ? 'border-error focus:border-error'
+                  : 'border-border-default'
+              )}
             />
+            {durationError && (
+              <p id="export-duration-error" className="mt-1.5 text-xs text-error">
+                目标时长需在 5–300 秒之间
+              </p>
+            )}
           </div>
 
           <div>
@@ -227,7 +239,7 @@ export function ExportSettings({ project, open, onClose, onStart }: ExportSettin
             <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
               取消
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || !durationValid}>
               {submitting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
