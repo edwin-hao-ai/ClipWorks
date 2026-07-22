@@ -100,12 +100,11 @@ services:
       - postgres
       - redis
       - renderer
-    # --concurrency=2：prefork 起 2 个子进程，单 worker 可并行执行 2 个渲染任务。
-    # 内存成本：Remotion/Chromium 实际运行在 renderer 容器，每个并发渲染约占
-    # 2-4GB（Chromium + ffmpeg），并发为 2 时 renderer 峰值约 4-8GB，宿主机建议
-    # 预留 ≥10GB 给 Docker；worker 自身每个 prefork 子进程仅 ~200MB。若并发渲染
-    # 因内存不足崩溃，降回 --concurrency=1 即可恢复串行（任务仍带 900s 硬时限）。
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    # --concurrency=1：prefork 起 1 个子进程，串行执行渲染任务。
+    # 内存成本：HyperFrames/Chromium 实际运行在 renderer 容器，每个渲染约占
+    # 2-4GB（Chromium + ffmpeg）。8GB 宿主机建议保持串行，避免并发导致内存不足
+    # 崩溃；任务本身仍带 900s 硬时限。若宿主机 ≥16GB，可改为 --concurrency=2。
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=1
     logging:
       driver: json-file
       options:
