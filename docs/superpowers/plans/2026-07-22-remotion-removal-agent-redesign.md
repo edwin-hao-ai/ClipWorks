@@ -294,7 +294,7 @@ git commit -m "refactor(render_task): whole-page HyperFrames render, remove hybr
 
 ---
 
-## Task 3: 更新 RenderService 降级链，移除 RemotionProvider 默认注册
+## Task 3: 更新 RenderService 降级链，Remotion 保留但不作为默认
 
 **Files:**
 - Modify: `backend/app/rendering/service.py`
@@ -302,14 +302,17 @@ git commit -m "refactor(render_task): whole-page HyperFrames render, remove hybr
 
 **Interfaces:**
 - Consumes: `RenderRequest`
-- Produces: `RenderResult` from `hyperframes` → `video-use` → `mock`
+- Produces: `RenderResult` from `hyperframes` → `video-use` → `remotion`（显式时） → `mock`
 
 - [ ] **Step 1: 修改 service.py**
+
+保留 `RemotionProvider()` 在 `PROVIDERS` 列表中，但默认降级链仅在用户显式指定 `engine="remotion"` 或 `hybrid` 时才优先使用它。默认路径（`hyperframes`）失败时，降级到 `video-use`，再失败到 `mock`。
 
 ```python
 # backend/app/rendering/service.py
 from app.rendering.engine_selector import select_engine
 from app.rendering.providers.hyperframes import HyperFramesProvider
+from app.rendering.providers.remotion import RemotionProvider
 from app.rendering.providers.video_use import VideoUseProvider
 from app.rendering.providers.mock import MockProvider
 from app.rendering.provider import RenderRequest, RenderResult
@@ -319,6 +322,7 @@ logger = logging.getLogger(__name__)
 PROVIDERS = [
     HyperFramesProvider(),
     VideoUseProvider(),
+    RemotionProvider(),
     MockProvider(),
 ]
 
@@ -333,10 +337,18 @@ class RenderService:
 
         order_names: list[str] = []
         preferred = engine
+        if preferred == "hybrid":
+            # hybrid 保留旧行为：优先 remotion 总装，但 scene 仍由 HF 预渲染
+            preferred = "remotion"
         if preferred in provider_map:
             order_names.append(preferred)
 
-        # 补入其余真实引擎
+        # 默认 hyperframes 失败后，按 video-use → remotion → mock 降级
+        for name in ("video-use", "remotion"):
+            if name in provider_map and name not in order_names:
+                order_names.append(name)
+
+        # 其余真实引擎（含未加入的）按注册顺序补入
         for p in PROVIDERS:
             if p.name == "mock" or p.name in order_names:
                 continue
@@ -373,14 +385,12 @@ from app.rendering.provider import RenderRequest
 from app.rendering.service import RenderService, PROVIDERS
 
 
-def test_service_does_not_include_remotion_by_default():
+def test_service_includes_all_providers():
     names = {p.name for p in PROVIDERS}
-    assert "remotion" not in names
-    assert names == {"hyperframes", "video-use", "mock"}
+    assert names == {"hyperframes", "video-use", "remotion", "mock"}
 
 
-@pytest.mark.asyncio
-async def test_service_falls_back_from_hyperframes_to_video_use_to_mock(monkeypatch):
+def test_service_default_prefers_hyperframes_then_video_use_then_mock(monkeypatch):
     service = RenderService()
 
     async def fake_hf(job, project, request):
@@ -389,9 +399,7 @@ async def test_service_falls_back_from_hyperframes_to_video_use_to_mock(monkeypa
 
     async def fake_vu(job, project, request):
         from app.rendering.provider import RenderResult
-        if request.raw_assets:
-            return RenderResult(success=True, output_url="/api/static/vu.mp4")
-        return RenderResult(success=False, error_message="no raw assets")
+        return RenderResult(success=True, output_url="/api/static/vu.mp4")
 
     async def fake_mock(job, project, request):
         from app.rendering.provider import RenderResult
@@ -401,10 +409,25 @@ async def test_service_falls_back_from_hyperframes_to_video_use_to_mock(monkeypa
     monkeypatch.setattr("app.rendering.providers.video_use.VideoUseProvider.render", fake_vu)
     monkeypatch.setattr("app.rendering.providers.mock.MockProvider.render", fake_mock)
 
-    req = RenderRequest(composition={}, assets={}, raw_assets=["clip.mp4"])
+    req = RenderRequest(composition={}, assets={})
     result = service.render(None, None, req)
     assert result.success
     assert result.output_url == "/api/static/vu.mp4"
+
+
+def test_service_explicit_remotion_still_works(monkeypatch):
+    service = RenderService()
+
+    async def fake_remotion(job, project, request):
+        from app.rendering.provider import RenderResult
+        return RenderResult(success=True, output_url="/api/static/remotion.mp4")
+
+    monkeypatch.setattr("app.rendering.providers.remotion.RemotionProvider.render", fake_remotion)
+
+    req = RenderRequest(composition={}, assets={}, engine="remotion")
+    result = service.render(None, None, req)
+    assert result.success
+    assert result.output_url == "/api/static/remotion.mp4"
 ```
 
 - [ ] **Step 3: 运行测试**
@@ -414,82 +437,67 @@ cd /Users/edwinhao/ClipWorks/backend
 pytest tests/rendering/test_hybrid_provider.py tests/rendering/test_remotion_provider.py -v
 ```
 
-Expected: `test_remotion_provider.py` 可能失败，需要下一步处理。
+Expected: PASS
 
 - [ ] **Step 4: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
 git add backend/app/rendering/service.py backend/tests/rendering/test_hybrid_provider.py
-git commit -m "refactor(rendering): drop RemotionProvider from default chain"
+git commit -m "refactor(rendering): keep Remotion available but default chain is HF → video-use → mock"
 ```
 
 ---
 
-## Task 4: 标记 RemotionProvider 为 deprecated 并移除 renderer 端点
+## Task 4: 保留 RemotionProvider 和 renderer /render/remotion 端点
 
 **Files:**
-- Modify: `backend/app/rendering/providers/remotion.py`
-- Modify: `services/renderer/main.py`
 - Test: `backend/tests/rendering/test_remotion_provider.py`
+- Inspect: `services/renderer/main.py`
 
 **Interfaces:**
-- `RemotionProvider` 保留但 `can_handle` 永远返回 False（除非显式 engine="remotion"）
-- `/render/remotion` 端点从 renderer 移除
+- `RemotionProvider` 继续可用，`can_handle` 在显式 `engine="remotion"` 时返回 True
+- `/render/remotion` 端点保留
 
-- [ ] **Step 1: 修改 RemotionProvider 为可选/deprecated**
+- [ ] **Step 1: 确认 RemotionProvider 行为**
 
-```python
-# backend/app/rendering/providers/remotion.py
-# 在 class 顶部添加 logging
-import warnings
-
-logger = logging.getLogger(__name__)
-
-
-class RemotionProvider(RenderProvider):
-    name = "remotion"
-
-    def __init__(self):
-        warnings.warn(
-            "RemotionProvider is deprecated and no longer in the default render chain. "
-            "Use hyperframes whole-page rendering instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-    def can_handle(self, request: RenderRequest) -> bool:
-        # 仅在显式指定 engine=remotion 时启用，默认不再使用。
-        return request.engine == "remotion"
-
-    # render 方法保持不变
-```
-
-- [ ] **Step 2: 从 renderer main.py 移除 /render/remotion 端点**
+`RemotionProvider.can_handle` 当前为：
 
 ```python
-# services/renderer/main.py
-# 删除 RemotionRequest 模型和 render_remotion 函数
-# 保留 HyperFramesRequest, ProxyRequest, SoundtrackRequest 等
+def can_handle(self, request: RenderRequest) -> bool:
+    return request.engine in (None, "remotion", "hybrid")
 ```
 
-- [ ] **Step 3: 更新或删除 test_remotion_provider.py**
+需要改为仅在显式 `engine="remotion"` 或 `"hybrid"` 时返回 True，默认 `engine=None` 时不再由 service 默认链触发（因为 Task 3 的 service 已经控制顺序）。
+
+如果当前 `can_handle` 对 `None` 返回 True，则需要修改：
+
+```python
+def can_handle(self, request: RenderRequest) -> bool:
+    return request.engine in ("remotion", "hybrid")
+```
+
+- [ ] **Step 2: 更新 test_remotion_provider.py**
 
 ```python
 # backend/tests/rendering/test_remotion_provider.py
 import pytest
-import warnings
 from app.rendering.providers.remotion import RemotionProvider
 from app.rendering.provider import RenderRequest
 
 
-def test_remotion_provider_is_deprecated():
-    with pytest.warns(DeprecationWarning, match="RemotionProvider is deprecated"):
-        provider = RemotionProvider()
+@pytest.mark.asyncio
+async def test_remotion_provider_can_handle_explicit_engine():
+    provider = RemotionProvider()
     assert provider.can_handle(RenderRequest(engine="remotion")) is True
+    assert provider.can_handle(RenderRequest(engine="hybrid")) is True
     assert provider.can_handle(RenderRequest(engine="hyperframes")) is False
     assert provider.can_handle(RenderRequest()) is False
 ```
+
+- [ ] **Step 3: 确认 renderer /render/remotion 端点保留**
+
+不需要删除 `services/renderer/main.py` 中的 `/render/remotion` 端点。只需确认它仍然存在且可调用。
 
 - [ ] **Step 4: 运行测试**
 
@@ -501,14 +509,12 @@ source .venv/bin/activate
 pytest tests/test_remotion.py -v
 ```
 
-Expected: backend PASS；renderer test_remotion.py 可能需要删除或跳过。
-
 - [ ] **Step 5: 提交**
 
 ```bash
 cd /Users/edwinhao/ClipWorks
-git add backend/app/rendering/providers/remotion.py services/renderer/main.py backend/tests/rendering/test_remotion_provider.py services/renderer/tests/test_remotion.py
-git commit -m "chore(remotion): deprecate RemotionProvider and remove renderer /render/remotion endpoint"
+git add backend/app/rendering/providers/remotion.py backend/tests/rendering/test_remotion_provider.py
+git commit -m "chore(remotion): keep Remotion provider available for explicit use"
 ```
 
 ---
