@@ -18,6 +18,7 @@ import { api, API_URL } from '@/lib/api';
 import { Download, RefreshCw, Scissors, Trash2, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import { GenerationPanel } from '@/components/project/GenerationPanel';
+import { ExportSettings } from '@/components/project/ExportSettings';
 
 const PIPELINE_STEPS = [
   { id: 'understand', label: '理解需求' },
@@ -158,6 +159,7 @@ export default function ProjectWorkspacePage() {
   const [deleting, setDeleting] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
   const [creditBlocked, setCreditBlocked] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const handleDelete = async () => {
     if (!confirmDelete) {
@@ -436,28 +438,13 @@ export default function ProjectWorkspacePage() {
                 </Button>
                 <Button
                   size="sm"
-                  disabled={!latestJob?.output_url || downloading.mp4}
-                  title={
-                    latestJob?.output_url
-                      ? '下载 MP4 成片'
-                      : '尚无 MP4 成片，请先完成渲染'
-                  }
-                  onClick={() =>
-                    downloadFile(
-                      latestJob?.output_url,
-                      `${project.title || 'project'}.mp4`,
-                      'mp4'
-                    )
-                  }
+                  onClick={() => setExportOpen(true)}
+                  title="导出成片"
                 >
-                  {downloading.mp4 ? (
-                    <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Download className="w-4 h-4" />
-                      <span className="hidden sm:inline">导出 MP4</span>
-                    </span>
-                  )}
+                  <span className="flex items-center gap-2">
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">导出</span>
+                  </span>
                 </Button>
                 {confirmDelete ? (
                   <div className="flex items-center gap-1.5">
@@ -655,6 +642,17 @@ export default function ProjectWorkspacePage() {
           </main>
         </div>
       </div>
+      {project && (
+        <ExportSettings
+          project={project}
+          open={exportOpen}
+          onClose={() => setExportOpen(false)}
+          onStart={() => {
+            setProject((prev) => (prev ? { ...prev, status: 'generating' } : prev));
+            setTimeout(() => refreshProject(), 300);
+          }}
+        />
+      )}
     </AuthGuard>
   );
 }

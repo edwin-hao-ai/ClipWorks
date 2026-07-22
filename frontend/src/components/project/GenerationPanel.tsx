@@ -102,6 +102,16 @@ export function GenerationPanel({
   const queuePosition = job?.queue_position ?? 0;
   const logs = useMemo(() => job?.logs || [], [job?.logs]);
   const visibleLogs = logs.slice(-12);
+  const latestLog = logs.length > 0 ? logs[logs.length - 1] : null;
+  const hasSteps = steps && steps.length > 0;
+  // 无 steps 时，优先使用 job.progress；若未设置，尝试从最新日志解析百分比。
+  const displayedProgress =
+    progress > 0
+      ? progress
+      : (() => {
+          const match = latestLog?.message?.match(/(\d+)%/);
+          return match ? parseInt(match[1], 10) : 0;
+        })();
   const hasWarningLog = logs.some(
     (l) => l.message.includes('⚠️') || l.message.includes('占位') || l.message.includes('失败')
   );
@@ -198,6 +208,8 @@ export function GenerationPanel({
             ? queuePosition > 0
               ? `前面还有 ${queuePosition} 个任务在排队，预计约 ${estimatedMinutes} 分钟后开始。`
               : '排队中，即将开始生成…'
+            : !hasSteps && latestLog
+            ? latestLog.message
             : currentDescription}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs text-content-tertiary">
@@ -209,9 +221,9 @@ export function GenerationPanel({
               目标 {project.target_duration}s
             </span>
           ) : null}
-          {progress > 0 ? (
+          {displayedProgress > 0 ? (
             <span className="px-2 py-1 rounded-full bg-background-elevated border border-border-subtle">
-              总进度 {progress}%
+              总进度 {displayedProgress}%
             </span>
           ) : null}
         </div>
@@ -227,11 +239,13 @@ export function GenerationPanel({
         )}
       </div>
 
-      <Pipeline
-        steps={steps}
-        currentStepIndex={isQueued || isWaiting || isStalled ? -1 : currentStepIndex}
-        currentDescription={isQueued || isWaiting ? '排队中' : currentDescription}
-      />
+      {hasSteps && (
+        <Pipeline
+          steps={steps}
+          currentStepIndex={isQueued || isWaiting || isStalled ? -1 : currentStepIndex}
+          currentDescription={isQueued || isWaiting ? '排队中' : currentDescription}
+        />
+      )}
 
       <div className="mt-6">
         <div className="flex items-center gap-2 text-xs font-semibold text-content-secondary uppercase tracking-wider mb-3">
@@ -308,46 +322,48 @@ export function GenerationPanel({
           </div>
         )}
 
-        <div className="space-y-2">
-          {steps.map((step, idx) => {
-            const effectiveIndex = isQueued || isWaiting || isStalled ? -1 : currentStepIndex;
-            const isCurrent = idx === effectiveIndex;
-            const isDone = idx < effectiveIndex;
-            return (
-              <div
-                key={step.id}
-                className={clsx(
-                  'flex items-start gap-3 p-3 rounded-lg text-sm transition-colors',
-                  isCurrent
-                    ? 'bg-brand-900/20 border border-brand-500/20'
-                    : 'border border-transparent',
-                  isDone ? 'text-content-secondary' : 'text-content-tertiary'
-                )}
-              >
-                <div className="mt-0.5 shrink-0">
-                  {isDone ? (
-                    <Check className="w-4 h-4 text-success" />
-                  ) : isCurrent ? (
-                    <Loader2 className="w-4 h-4 text-brand-400 animate-spin" />
-                  ) : (
-                    <Circle className="w-4 h-4" />
+        {hasSteps && (
+          <div className="space-y-2">
+            {steps.map((step, idx) => {
+              const effectiveIndex = isQueued || isWaiting || isStalled ? -1 : currentStepIndex;
+              const isCurrent = idx === effectiveIndex;
+              const isDone = idx < effectiveIndex;
+              return (
+                <div
+                  key={step.id}
+                  className={clsx(
+                    'flex items-start gap-3 p-3 rounded-lg text-sm transition-colors',
+                    isCurrent
+                      ? 'bg-brand-900/20 border border-brand-500/20'
+                      : 'border border-transparent',
+                    isDone ? 'text-content-secondary' : 'text-content-tertiary'
                   )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={clsx('font-medium', isCurrent && 'text-content-primary')}>
-                    {step.label}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {isDone ? (
+                      <Check className="w-4 h-4 text-success" />
+                    ) : isCurrent ? (
+                      <Loader2 className="w-4 h-4 text-brand-400 animate-spin" />
+                    ) : (
+                      <Circle className="w-4 h-4" />
+                    )}
                   </div>
-                  <div className="text-xs mt-0.5">{STEP_DETAILS[step.id]}</div>
-                  {isCurrent && (
-                    <div className="text-xs text-brand-400 mt-1 font-medium">
-                      正在执行{'.'.repeat((tick % 3) + 1)}
+                  <div className="flex-1 min-w-0">
+                    <div className={clsx('font-medium', isCurrent && 'text-content-primary')}>
+                      {step.label}
                     </div>
-                  )}
+                    <div className="text-xs mt-0.5">{STEP_DETAILS[step.id]}</div>
+                    {isCurrent && (
+                      <div className="text-xs text-brand-400 mt-1 font-medium">
+                        正在执行{'.'.repeat((tick % 3) + 1)}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
