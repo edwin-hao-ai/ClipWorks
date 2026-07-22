@@ -4,7 +4,7 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -66,6 +66,7 @@ def _queue_position(job: RenderJob, db: Session) -> int:
 @router.post("/generate", status_code=202)
 def generate_video(
     project_id: str,
+    data: dict = Body(default={}),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -74,6 +75,8 @@ def generate_video(
     project.status = "generating"
     db.commit()
 
+    quality = data.get("quality") if isinstance(data, dict) else None
+
     composition_id = project.composition.id if project.composition else None
     job = RenderJob(project_id=project_id, composition_id=composition_id, status="queued")
     db.add(job)
@@ -81,7 +84,7 @@ def generate_video(
     db.refresh(job)
 
     try:
-        render_video_task.delay(job.id, project_id)
+        render_video_task.delay(job.id, project_id, quality=quality)
     except Exception as exc:
         logger.exception("Failed to enqueue render task for project %s", project_id)
         job.status = "failed"
@@ -104,6 +107,7 @@ def agent_generate_video(
     check_credits(user)
     prompt = data.get("prompt") if isinstance(data, dict) else None
     engine = data.get("engine") if isinstance(data, dict) else None
+    quality = data.get("quality") if isinstance(data, dict) else None
 
     project.status = "generating"
     db.commit()
@@ -115,7 +119,7 @@ def agent_generate_video(
     db.refresh(job)
 
     try:
-        render_video_task.delay(job.id, project_id, prompt, engine)
+        render_video_task.delay(job.id, project_id, prompt, engine, quality=quality)
     except Exception as exc:
         logger.exception("Failed to enqueue agent render task for project %s", project_id)
         job.status = "failed"

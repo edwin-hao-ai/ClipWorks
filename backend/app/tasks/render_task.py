@@ -155,6 +155,23 @@ def _stock_queries(plan: Optional[dict], prompt: Optional[str]) -> Optional[list
 
 _FORMAT_DIMS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080)}
 
+# Map ClipWorks target_format values to HyperFrames --resolution names.
+_FORMAT_TO_RESOLUTION = {"16:9": "landscape", "9:16": "portrait", "1:1": "square"}
+
+
+def _normalize_render_quality(quality: Optional[str], target_format: Optional[str]) -> tuple[str, Optional[str]]:
+    """Translate frontend/export quality choices into HyperFrames parameters.
+
+    Returns (hf_quality, hf_resolution).  'ultra' is mapped to high quality
+    plus 4k resolution; otherwise resolution follows the project target_format.
+    """
+    q = quality or "standard"
+    if q == "ultra":
+        return "high", "4k"
+    if q == "high":
+        return "high", _FORMAT_TO_RESOLUTION.get(target_format or "")
+    return "standard", _FORMAT_TO_RESOLUTION.get(target_format or "")
+
 
 def _apply_target_format(comp_json: dict, target_format: Optional[str]) -> dict:
     """强制成片画幅与项目 target_format 一致，作为 LLM/方案忽略画幅时的安全网。
@@ -350,6 +367,7 @@ def render_video_task(
     prompt: Optional[str] = None,
     engine: Optional[str] = None,
     plan: Optional[dict] = None,
+    quality: Optional[str] = None,
 ):
     job = None
     project = None
@@ -478,6 +496,10 @@ def render_video_task(
 
         db.refresh(project)
 
+        # 把项目/导出设置透传给渲染引擎；默认单 worker + low-memory 模式，
+        # 适配 8GB 服务器，避免 Chromium 并发导致内存压力与超时。
+        target_format = getattr(project, "target_format", None)
+        hf_quality, hf_resolution = _normalize_render_quality(quality, target_format)
         request = RenderRequest(
             engine=selected_engine,
             composition=comp_json,
@@ -488,6 +510,11 @@ def render_video_task(
             engine_hint=plan.get("engine_hint") if isinstance(plan, dict) else None,
             html_path=_html_path,
             html_url=_html_url,
+            quality=hf_quality,
+            fps=comp_json.get("fps") or (project.composition.fps if project.composition else 30),
+            format="mp4",
+            resolution=hf_resolution,
+            workers=1,
         )
         job.progress = 80
         _append_log(job, "渲染请求已发送，引擎正在出片…")

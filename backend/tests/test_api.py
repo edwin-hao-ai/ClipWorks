@@ -146,6 +146,47 @@ def test_generate_video_not_found(auth_client):
     assert r.status_code == 404
 
 
+def test_generate_video_accepts_quality(auth_client, monkeypatch):
+    # 共享演示账号额度会被 e2e 消耗，切换套餐补足额度。
+    auth_client.put("/auth/me", json={"plan": "free"})
+    auth_client.put("/auth/me", json={"plan": "pro"})
+
+    r = auth_client.post("/projects/", json={"title": "Quality Test Project"})
+    assert r.status_code == 201
+    project_id = r.json()["id"]
+
+    captured = {}
+
+    def fake_delay(job_id, project_id, prompt=None, engine=None, plan=None, quality=None):
+        captured["quality"] = quality
+
+    monkeypatch.setattr("app.routers.renders.render_video_task.delay", fake_delay)
+
+    r2 = auth_client.post(f"/projects/{project_id}/renders/generate", json={"quality": "high"})
+    assert r2.status_code == 202
+    assert captured.get("quality") == "high"
+
+
+def test_generate_video_defaults_quality_when_body_empty(auth_client, monkeypatch):
+    auth_client.put("/auth/me", json={"plan": "free"})
+    auth_client.put("/auth/me", json={"plan": "pro"})
+
+    r = auth_client.post("/projects/", json={"title": "Default Quality Project"})
+    assert r.status_code == 201
+    project_id = r.json()["id"]
+
+    captured = {}
+
+    def fake_delay(job_id, project_id, prompt=None, engine=None, plan=None, quality=None):
+        captured["quality"] = quality
+
+    monkeypatch.setattr("app.routers.renders.render_video_task.delay", fake_delay)
+
+    r2 = auth_client.post(f"/projects/{project_id}/renders/generate")
+    assert r2.status_code == 202
+    assert captured.get("quality") is None
+
+
 def test_get_render_not_found(auth_client):
     r = auth_client.get("/projects/does-not-exist/renders/does-not-exist")
     assert r.status_code == 404

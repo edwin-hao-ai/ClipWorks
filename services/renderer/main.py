@@ -59,6 +59,12 @@ def health():
 class HyperFramesRequest(BaseModel):
     html_path: str
     output_path: str
+    quality: Optional[str] = "standard"
+    fps: Optional[int] = 30
+    format: Optional[str] = "mp4"
+    resolution: Optional[str] = None
+    workers: Optional[int] = None
+    low_memory_mode: bool = False
 
 
 class RemotionRequest(BaseModel):
@@ -156,7 +162,16 @@ def render_hyperframes(req: HyperFramesRequest):
         "render",
         html_dir,
         req.output_path,
+        "--quality", req.quality,
+        "--fps", str(req.fps),
+        "--format", req.format,
     ]
+    if req.resolution:
+        cmd += ["--resolution", req.resolution]
+    if req.workers is not None:
+        cmd += ["--workers", str(req.workers)]
+    if req.low_memory_mode:
+        cmd.append("--low-memory-mode")
     try:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True

@@ -18,6 +18,13 @@ class RenderRequest:
     # a second time.
     html_path: Optional[str] = None
     html_url: Optional[str] = None
+    # HyperFrames / render-engine tuning.  Keep them optional so older callers
+    # and tests continue to work; providers supply sensible low-memory defaults.
+    quality: Optional[str] = None  # draft | standard | high
+    fps: Optional[int] = None
+    format: Optional[str] = None  # mp4 | webm | mov
+    resolution: Optional[str] = None  # landscape | portrait | square | 1080p | 4k
+    workers: Optional[int] = None
 
 
 @dataclass

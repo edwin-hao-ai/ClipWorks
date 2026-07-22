@@ -86,7 +86,7 @@ export function ExportSettings({ project, open, onClose, onStart }: ExportSettin
         target_duration: duration,
       });
 
-      // 2. 触发渲染；quality 作为未来后端支持的提示，当前后端可忽略。
+      // 2. 触发渲染；quality 透传给后端，映射到 HyperFrames --quality / --resolution。
       await api.post(`/projects/${project.id}/renders/generate`, { quality });
 
       onStart?.();

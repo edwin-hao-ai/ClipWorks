@@ -54,6 +54,44 @@ def test_render_hyperframes_writes_output(sample_html, assets_dir):
     assert os.path.dirname(sample_html) in cmd  # HyperFrames 接收目录而非文件
     assert output_path in cmd
     assert kwargs.get("start_new_session") is True  # 必须新会话，killpg 才收得干净
+    # Defaults are filled in and passed as CLI flags.
+    assert "--quality" in cmd and cmd[cmd.index("--quality") + 1] == "standard"
+    assert "--fps" in cmd and cmd[cmd.index("--fps") + 1] == "30"
+    assert "--format" in cmd and cmd[cmd.index("--format") + 1] == "mp4"
+    assert "--workers" not in cmd
+    assert "--low-memory-mode" not in cmd
+
+
+def test_render_hyperframes_passes_all_cli_flags(sample_html, assets_dir):
+    output_path = os.path.join(assets_dir, "test.mp4")
+
+    with patch("main.subprocess.Popen", return_value=_fake_proc()) as mock_popen:
+        response = client.post(
+            "/render/hyperframes",
+            json={
+                "html_path": sample_html,
+                "output_path": output_path,
+                "quality": "high",
+                "fps": 60,
+                "format": "webm",
+                "resolution": "4k",
+                "workers": 1,
+                "low_memory_mode": True,
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    args, kwargs = mock_popen.call_args
+    cmd = args[0]
+    assert cmd[cmd.index("--quality") + 1] == "high"
+    assert cmd[cmd.index("--fps") + 1] == "60"
+    assert cmd[cmd.index("--format") + 1] == "webm"
+    assert cmd[cmd.index("--resolution") + 1] == "4k"
+    assert cmd[cmd.index("--workers") + 1] == "1"
+    assert "--low-memory-mode" in cmd
+    assert kwargs.get("start_new_session") is True
 
 
 def test_render_hyperframes_rejects_paths_outside_assets(sample_html, assets_dir):

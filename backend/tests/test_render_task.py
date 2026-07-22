@@ -185,6 +185,125 @@ def test_render_video_task_explicit_engine_passthrough(monkeypatch):
             p.stop()
 
 
+def test_render_video_task_default_hyperframes_low_memory(monkeypatch):
+    """Default HyperFrames render request should use low-memory single-worker settings."""
+    mock_session = MagicMock()
+    monkeypatch.setattr("app.tasks.render_task.SessionLocal", lambda: mock_session)
+
+    calls = {"request": None}
+
+    def capture_render(job, project, request):
+        calls["request"] = request
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.output_url = "/api/static/p1/output.mp4"
+        mock_result.html_output_url = None
+        mock_result.error_message = None
+        return mock_result
+
+    mock_service = MagicMock()
+    mock_service.render.side_effect = capture_render
+    monkeypatch.setattr("app.tasks.render_task.RenderService", lambda: mock_service)
+
+    monkeypatch.setattr("app.services.stock_images.fetch_stock_images", lambda *a, **kw: [])
+    monkeypatch.setattr("app.services.audio_track.build_soundtrack", lambda *a, **kw: None)
+    monkeypatch.setattr("app.rendering.qa.check_render_quality", lambda *a, **kw: (True, None))
+    monkeypatch.setattr("app.tasks.render_task.generate_html", lambda *a, **kw: "<html></html>")
+
+    patches = _patch_kimi_client()
+    for p in patches:
+        p.start()
+    try:
+        mock_job = MagicMock()
+        mock_job.status = "queued"
+        mock_job.logs = []
+        mock_job.id = "job-1"
+        mock_project = MagicMock()
+        mock_project.composition = None
+        mock_project.source_url = None
+        mock_project.assets = []
+        mock_project.target_format = "9:16"
+        mock_project.title = "Test Project"
+        mock_user = MagicMock()
+        mock_user.credits = 5
+        mock_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_job,
+            mock_project,
+            mock_user,
+        ]
+
+        render_video_task.run("job-1", "proj-1", "prompt")
+
+        req = calls["request"]
+        assert req.quality == "standard"
+        assert req.workers == 1
+        assert req.resolution == "portrait"
+        assert req.format == "mp4"
+        assert mock_job.status == "completed"
+    finally:
+        for p in patches:
+            p.stop()
+
+
+def test_render_video_task_ultra_quality_maps_to_4k(monkeypatch):
+    """Export quality 'ultra' should map to 4k resolution while keeping safe workers."""
+    mock_session = MagicMock()
+    monkeypatch.setattr("app.tasks.render_task.SessionLocal", lambda: mock_session)
+
+    calls = {"request": None}
+
+    def capture_render(job, project, request):
+        calls["request"] = request
+        mock_result = MagicMock()
+        mock_result.success = True
+        mock_result.output_url = "/api/static/p1/output.mp4"
+        mock_result.html_output_url = None
+        mock_result.error_message = None
+        return mock_result
+
+    mock_service = MagicMock()
+    mock_service.render.side_effect = capture_render
+    monkeypatch.setattr("app.tasks.render_task.RenderService", lambda: mock_service)
+
+    monkeypatch.setattr("app.services.stock_images.fetch_stock_images", lambda *a, **kw: [])
+    monkeypatch.setattr("app.services.audio_track.build_soundtrack", lambda *a, **kw: None)
+    monkeypatch.setattr("app.rendering.qa.check_render_quality", lambda *a, **kw: (True, None))
+    monkeypatch.setattr("app.tasks.render_task.generate_html", lambda *a, **kw: "<html></html>")
+
+    patches = _patch_kimi_client()
+    for p in patches:
+        p.start()
+    try:
+        mock_job = MagicMock()
+        mock_job.status = "queued"
+        mock_job.logs = []
+        mock_job.id = "job-1"
+        mock_project = MagicMock()
+        mock_project.composition = None
+        mock_project.source_url = None
+        mock_project.assets = []
+        mock_project.target_format = "16:9"
+        mock_project.title = "Test Project"
+        mock_user = MagicMock()
+        mock_user.credits = 5
+        mock_session.query.return_value.filter.return_value.first.side_effect = [
+            mock_job,
+            mock_project,
+            mock_user,
+        ]
+
+        render_video_task.run("job-1", "proj-1", "prompt", quality="ultra")
+
+        req = calls["request"]
+        assert req.quality == "high"
+        assert req.resolution == "4k"
+        assert req.workers == 1
+        assert mock_job.status == "completed"
+    finally:
+        for p in patches:
+            p.stop()
+
+
 def test_render_video_task_html_fallback_on_generate_failure(monkeypatch):
     """If generate_html fails with assets, it should retry with empty assets and still render."""
     mock_session = MagicMock()

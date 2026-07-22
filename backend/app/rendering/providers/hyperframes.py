@@ -33,6 +33,12 @@ class HyperFramesProvider(RenderProvider):
         payload = {
             "html_path": html_path,
             "output_path": output_path,
+            "quality": request.quality or "standard",
+            "fps": request.fps or 30,
+            "format": request.format or "mp4",
+            "resolution": request.resolution,
+            "workers": request.workers,
+            "low_memory_mode": request.workers == 1,
         }
 
         try:
