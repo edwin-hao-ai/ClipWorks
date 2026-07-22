@@ -10,5 +10,5 @@ def select_engine(request: RenderRequest) -> str:
     hint = (request.engine_hint or "").lower()
     if hint and hint in ("hyperframes", "remotion", "video-use"):
         return hint
-    # 默认走 hybrid：HF 负责单 scene 视觉动效，Remotion 负责总装、转场、音轨。
-    return "hybrid"
+    # 默认整片 HyperFrames 渲染；Remotion 不再作为默认路径。
+    return "hyperframes"

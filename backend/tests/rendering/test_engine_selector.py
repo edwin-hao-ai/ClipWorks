@@ -13,10 +13,10 @@ def test_selects_remotion_when_hinted():
     assert select_engine(req) == "remotion"
 
 
-def test_default_returns_hybrid():
-    # 默认营销视频请求走 hybrid：HF 负责单 scene 视觉动效，Remotion 负责总装/转场/音轨。
+def test_select_engine_defaults_to_hyperframes():
+    # 默认整片使用 HyperFrames 渲染；Remotion 不再作为默认路径。
     req = RenderRequest(composition={}, assets={})
-    assert select_engine(req) == "hybrid"
+    assert select_engine(req) == "hyperframes"
 
 
 def test_hyperframes_keyword_respected():
