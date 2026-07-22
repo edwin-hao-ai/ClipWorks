@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { AgentState, Project, RenderJob, Scene } from '@/lib/types';
 import { clsx } from 'clsx';
 import { PreviewPlayer } from './PreviewPlayer';
-import { SceneCards } from './SceneCards';
+import { StoryboardStrip } from './StoryboardStrip';
 import { API_URL } from '@/lib/api';
 import {
   Lightbulb,
@@ -56,6 +57,15 @@ export function AgentCanvas({
   onSelectScene,
   format = '16:9',
 }: AgentCanvasProps) {
+  const [currentScene, setCurrentScene] = useState(0);
+
+  useEffect(() => {
+    if (selectedSceneId) {
+      const idx = scenes.findIndex((s) => s.id === selectedSceneId);
+      if (idx >= 0) setCurrentScene(idx);
+    }
+  }, [selectedSceneId, scenes]);
+
   // Project mode: preview + storyboard for the three-column workspace.
   if (project) {
     const outputUrl = toSameOriginUrl(latestJob?.output_url ?? project.latest_output_url);
@@ -65,38 +75,55 @@ export function AgentCanvas({
     const hasOutput = outputUrl || htmlOutputUrl;
 
     return (
-      <div className="h-full flex flex-col gap-4 p-4">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
             <Bot className="w-4 h-4 text-brand-400" />
             <h2 className="text-sm font-semibold text-content-secondary">预览 & 故事板</h2>
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 bg-black rounded-lg overflow-hidden">
+        <div className="flex-1 flex items-center justify-center bg-black/40 p-6">
           {hasOutput ? (
-            <PreviewPlayer
-              outputUrl={outputUrl}
-              htmlOutputUrl={htmlOutputUrl}
-              format={format}
-              isPlaceholder={isPlaceholder}
-            />
+            <div className="w-full h-full max-w-3xl max-h-full bg-black rounded-lg overflow-hidden">
+              <PreviewPlayer
+                outputUrl={outputUrl}
+                htmlOutputUrl={htmlOutputUrl}
+                format={format}
+                isPlaceholder={isPlaceholder}
+              />
+            </div>
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-content-tertiary bg-background-surface border border-border-subtle rounded-lg">
-              <Film className="w-12 h-12 mb-3 text-content-tertiary/50" />
-              <p className="text-sm font-medium text-content-secondary">视频生成后会在这里预览</p>
-              <p className="text-xs mt-1">在左侧 Agent 面板输入指令开始生成或修改</p>
+            <div
+              className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
+              style={{ width: 270, height: 480 }}
+            >
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-4">
+                <div className="text-xl font-bold mb-2">镜 {currentScene + 1}</div>
+                <div className="text-sm opacity-80">
+                  {scenes[currentScene]?.text_content || scenes[currentScene]?.name || '预览区域'}
+                </div>
+              </div>
+              <div className="absolute bottom-4 left-4 right-4 h-1 bg-white/20 rounded">
+                <div
+                  className="h-full bg-brand-400 rounded"
+                  style={{ width: `${((currentScene + 1) / Math.max(1, scenes.length)) * 100}%` }}
+                />
+              </div>
             </div>
           )}
         </div>
 
-        <div className="h-[260px] shrink-0">
-          <SceneCards
-            scenes={scenes}
-            selectedId={selectedSceneId}
-            onSelect={onSelectScene || (() => {})}
-          />
-        </div>
+        <StoryboardStrip
+          scenes={scenes}
+          currentIndex={currentScene}
+          onSelect={(idx) => {
+            setCurrentScene(idx);
+            if (scenes[idx]?.id) {
+              onSelectScene?.(scenes[idx].id);
+            }
+          }}
+        />
       </div>
     );
   }

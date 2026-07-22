@@ -5,7 +5,8 @@ import { clsx } from 'clsx';
 import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { AgentPlan, AgentState, Project, Scene } from '@/lib/types';
-import { MessageSquare, Send, Bot, User, Pencil, Check, X, Wand2 } from 'lucide-react';
+import { PlanApproval } from './PlanApproval';
+import { MessageSquare, Send, Bot, User, Pencil, Wand2 } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'agent';
@@ -721,98 +722,13 @@ export function AgentChat({
             >
               <Wand2 className={isLg ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
             </div>
-            <div
-              className={clsx(
-                'flex-1 border border-brand-500/30 rounded-lg bg-brand-900/10',
-                isLg ? 'p-4 rounded-xl max-w-[85%]' : 'p-3 max-w-[90%]'
-              )}
-            >
-              <div className={clsx('flex items-center gap-2 text-brand-400 mb-2', isLg ? 'mb-3' : 'mb-2')}>
-                <span className={clsx('font-semibold', isLg ? 'text-sm' : 'text-xs')}>方案已就绪</span>
-                <span className="text-content-tertiary">·</span>
-                <span className={clsx('text-content-tertiary', isLg ? 'text-sm' : 'text-xs')}>
-                  确认后进入生成
-                </span>
-              </div>
-              <div className="space-y-2 mb-3">
-                <h4 className={clsx('font-semibold text-content-primary', isLg ? 'text-base' : 'text-sm')}>
-                  {pendingPlan.title}
-                </h4>
-                {pendingPlan.hook && (
-                  <p className={clsx('text-content-secondary', isLg ? 'text-sm' : 'text-xs')}>
-                    {pendingPlan.hook}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    pendingPlan.format,
-                    `${pendingPlan.duration} 秒`,
-                    pendingPlan.engine_hint,
-                  ].map((label) => (
-                    <span
-                      key={label}
-                      className={clsx(
-                        'px-2 py-0.5 rounded-full bg-background-elevated border border-border-subtle text-content-secondary',
-                        isLg ? 'text-xs' : 'text-[10px]'
-                      )}
-                    >
-                      {label}
-                    </span>
-                  ))}
-                </div>
-                <div className={clsx('space-y-1.5', isLg ? 'mt-3' : 'mt-2')}>
-                  {pendingPlan.scenes.map((s, idx) => (
-                    <div
-                      key={idx}
-                      className={clsx(
-                        'text-content-secondary bg-background-elevated/40 rounded border border-border-subtle/50',
-                        isLg ? 'text-sm p-2.5' : 'text-xs p-2'
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-content-primary">场景 {idx + 1}</span>
-                        <span className="text-content-tertiary">
-                          ({s.start}s–{s.start + s.duration}s)
-                        </span>
-                      </div>
-                      <p className="mt-1">{s.description}</p>
-                      {s.text && <p className="mt-1 text-brand-400">“{s.text}”</p>}
-                    </div>
-                  ))}
-                </div>
-                {pendingPlan.assets_needed.length > 0 && (
-                  <div className={clsx('text-content-tertiary', isLg ? 'text-sm' : 'text-xs')}>
-                    需要素材：{pendingPlan.assets_needed.join('、')}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size={isLg ? 'md' : 'sm'}
-                  className="flex-1"
-                  onClick={handleApprove}
-                  disabled={decisionLoading === 'approve'}
-                >
-                  {decisionLoading === 'approve' ? (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" />
-                      确认生成
-                    </span>
-                  )}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size={isLg ? 'md' : 'sm'}
-                  className="flex-1"
-                  onClick={() => setRejectMode(true)}
-                  disabled={decisionLoading !== null}
-                >
-                  <X className="w-3.5 h-3.5" />
-                  再改改
-                </Button>
-              </div>
+            <div className={clsx(isLg ? 'max-w-[85%]' : 'max-w-[90%]')}>
+              <PlanApproval
+                plan={pendingPlan}
+                onApprove={handleApprove}
+                onReject={() => setRejectMode(true)}
+                loading={decisionLoading !== null}
+              />
             </div>
           </div>
         )}

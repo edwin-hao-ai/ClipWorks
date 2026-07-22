@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { AgentChat } from '@/components/project/AgentChat';
+import { AgentPlan } from '@/lib/types';
 import { api } from '@/lib/api';
 
 const scenes = [
@@ -98,6 +99,41 @@ describe('AgentChat', () => {
 
     await waitFor(() => {
       expect(onStatusChange).toHaveBeenCalledWith('generating');
+    });
+  });
+
+  it('renders PlanApproval when a pending plan is provided in plan mode', async () => {
+    const pendingPlan: AgentPlan = {
+      title: '测试方案',
+      hook: '钩子文案',
+      format: '9:16',
+      duration: 15,
+      engine_hint: 'remotion',
+      assets_needed: [],
+      scenes: [
+        { start: 0, duration: 5, description: '开场', visual: 'intro', text: '你好' },
+      ],
+    };
+    const onApprove = vi.fn();
+    const onStatusChange = vi.fn();
+
+    render(
+      <AgentChat
+        projectId="p1"
+        mode="plan"
+        agentState={{ step: 'pending_approval', pending_plan: pendingPlan }}
+        onStatusChange={onStatusChange}
+      />
+    );
+
+    expect(screen.getByText('方案已就绪 · 待确认')).toBeInTheDocument();
+    expect(screen.getByText('9:16 · 15s · 1 镜')).toBeInTheDocument();
+    expect(screen.getByText('确认生成')).toBeInTheDocument();
+    expect(screen.getByText('再改改')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('确认生成'));
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/projects/p1/agent/approve', {});
     });
   });
 });

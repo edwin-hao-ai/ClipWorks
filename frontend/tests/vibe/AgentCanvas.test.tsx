@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { AgentCanvas } from '@/components/project/AgentCanvas';
-import { AgentState, Project } from '@/lib/types';
+import { AgentState, Project, Scene } from '@/lib/types';
 
 function state(step: AgentState['step'], payload: Record<string, unknown> = {}): AgentState {
   return { step, payload } as AgentState;
@@ -173,7 +173,41 @@ describe('AgentCanvas', () => {
 
     render(<AgentCanvas project={project} scenes={[]} />);
     expect(screen.getByText('预览 & 故事板')).toBeInTheDocument();
-    expect(screen.getByText('视频生成后会在这里预览')).toBeInTheDocument();
-    expect(screen.getByText('场景卡片')).toBeInTheDocument();
+    expect(screen.getByText('镜 1')).toBeInTheDocument();
+    expect(screen.getByText('预览区域')).toBeInTheDocument();
+    expect(screen.queryByText('场景卡片')).not.toBeInTheDocument();
+  });
+
+  it('renders StoryboardStrip and syncs preview on selection', () => {
+    const project = {
+      id: 'p1',
+      title: 'Storyboard Project',
+      source_type: 'url',
+      status: 'draft',
+      target_format: '9:16',
+      created_at: '',
+      updated_at: '',
+    } as Project;
+    const sceneScenes: Scene[] = [
+      { id: 's1', index: 0, name: '开场', start_time: 0, duration: 3, text_content: '开场文案' },
+      { id: 's2', index: 1, name: '正文', start_time: 3, duration: 4, text_content: '正文文案' },
+    ];
+    const onSelectScene = vi.fn();
+
+    render(
+      <AgentCanvas
+        project={project}
+        scenes={sceneScenes}
+        onSelectScene={onSelectScene}
+      />
+    );
+
+    expect(screen.getByText('开场')).toBeInTheDocument();
+    expect(screen.getByText('正文')).toBeInTheDocument();
+    expect(screen.getByText('开场文案')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('正文'));
+    expect(onSelectScene).toHaveBeenCalledWith('s2');
+    expect(screen.getByText('正文文案')).toBeInTheDocument();
   });
 });
