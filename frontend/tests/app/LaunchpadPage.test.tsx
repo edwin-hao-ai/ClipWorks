@@ -13,78 +13,92 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/api', () => ({
   api: {
     post: vi.fn(),
-    get: vi.fn(() => Promise.resolve([])),
+    get: vi.fn(),
   },
 }));
 
 describe('HomePage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+      user: { id: 'u1', email: 'test@example.com' },
+    });
   });
 
-  it('renders launchpad headline', () => {
+  it('renders agent conversation entry headline', () => {
     render(<HomePage />);
-    expect(screen.getByText('一句话，一段素材，一条成片')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/帮我做一个/)).toBeInTheDocument();
+    expect(screen.getByText('一句话，一条成片')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/帮我做一个 15 秒的产品介绍视频/)
+    ).toBeInTheDocument();
   });
 
   it('renders quick prompt buttons', () => {
     render(<HomePage />);
-    expect(screen.getByText('小红书口播精剪')).toBeInTheDocument();
+    expect(screen.getByText('从公众号文章生成视频')).toBeInTheDocument();
+    expect(screen.getByText('商品详情页转营销短片')).toBeInTheDocument();
+    expect(screen.getByText('生日祝福视频')).toBeInTheDocument();
   });
 
-  it('creates a project from the input and navigates on submit', async () => {
+  it('checks auth and creates a project from the input, then navigates', async () => {
     (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'demo-123' });
 
     render(<HomePage />);
     const input = screen.getByPlaceholderText(/帮我做一个/);
     fireEvent.change(input, { target: { value: '测试项目' } });
-    fireEvent.click(screen.getByRole('button', { name: /开始创作/ }));
+    fireEvent.click(screen.getByRole('button', { name: /生成视频 →/ }));
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/auth/me');
+    });
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/projects/', {
         title: '测试项目',
-        source_url: '',
-        source_type: 'url',
+        prompt: '测试项目',
       });
     });
 
     expect(push).toHaveBeenCalledWith('/projects/demo-123?initialPrompt=%E6%B5%8B%E8%AF%95%E9%A1%B9%E7%9B%AE');
   });
 
-  it('creates a project from a quick prompt', async () => {
-    (api.post as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'demo-456' });
+  it('fills prompt from a quick tip button', () => {
+    render(<HomePage />);
+    fireEvent.click(screen.getByText('生日祝福视频'));
+    const input = screen.getByPlaceholderText(/帮我做一个/) as HTMLTextAreaElement;
+    expect(input.value).toBe('生日祝福视频');
+  });
+
+  it('redirects to login when not authenticated', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Unauthorized'));
 
     render(<HomePage />);
-    fireEvent.click(screen.getByText('教程视频'));
+    const input = screen.getByPlaceholderText(/帮我做一个/);
+    fireEvent.change(input, { target: { value: '测试项目' } });
+    fireEvent.click(screen.getByRole('button', { name: /生成视频 →/ }));
 
     await waitFor(() => {
-      expect(api.post).toHaveBeenCalledWith('/projects/', {
-        title: '教程视频',
-        source_url: '',
-        source_type: 'url',
-      });
+      expect(push).toHaveBeenCalledWith('/login');
     });
-
-    expect(push).toHaveBeenCalledWith('/projects/demo-456?initialPrompt=%E6%95%99%E7%A8%8B%E8%A7%86%E9%A2%91');
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('displays an error message when project creation fails', async () => {
-    (api.post as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('网络错误'));
+    (api.post as ReturnType<typeof vi.fn>).mockImplementation(() => Promise.reject(new Error('网络错误')));
 
     render(<HomePage />);
     const input = screen.getByPlaceholderText(/帮我做一个/);
     fireEvent.change(input, { target: { value: '失败的项目' } });
-    fireEvent.click(screen.getByRole('button', { name: /开始创作/ }));
+    fireEvent.click(screen.getByRole('button', { name: /生成视频 →/ }));
 
-    await waitFor(() => {
-      expect(screen.getByText('网络错误')).toBeInTheDocument();
-    });
+    const errorEl = await screen.findByTestId('homepage-error');
+    expect(errorEl.textContent).toBe('网络错误');
   });
 
   it('does not submit when input is empty', () => {
     render(<HomePage />);
-    fireEvent.click(screen.getByRole('button', { name: /开始创作/ }));
+    fireEvent.click(screen.getByRole('button', { name: /生成视频 →/ }));
+    expect(api.get).not.toHaveBeenCalled();
     expect(api.post).not.toHaveBeenCalled();
   });
 });
