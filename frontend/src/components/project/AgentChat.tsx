@@ -242,17 +242,21 @@ export function AgentChat({
   // Auto-send the initial prompt from the launchpad when there is no prior
   // conversation history. This keeps the flow continuous: user types on the
   // home page, lands in the workspace, and immediately sees the Agent respond.
-  const autoSentRef = useRef(false);
+  // userMessageAddedRef prevents the user bubble from being appended twice in
+  // React StrictMode, while the stream itself is intentionally restarted on the
+  // second effect invocation so that the first (aborted) attempt is replaced by
+  // a live one.
+  const userMessageAddedRef = useRef(false);
   useEffect(() => {
     if (
-      !autoSentRef.current &&
       (mode === 'plan' || mode === 'vibe') &&
       initialPrompt &&
-      !loading &&
       !agentState?.messages?.length
     ) {
-      autoSentRef.current = true;
-      setMessages((prev) => [...prev, { role: 'user', text: initialPrompt }]);
+      if (!userMessageAddedRef.current) {
+        userMessageAddedRef.current = true;
+        setMessages((prev) => [...prev, { role: 'user', text: initialPrompt }]);
+      }
       if (mode === 'plan') {
         handlePlanStream(initialPrompt);
       } else {
@@ -260,7 +264,7 @@ export function AgentChat({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, initialPrompt, loading, agentState?.messages?.length]);
+  }, [mode, initialPrompt, agentState?.messages?.length]);
 
   const handlePlanStream = async (text: string) => {
     setLoading(true);
