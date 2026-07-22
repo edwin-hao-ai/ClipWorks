@@ -1,4 +1,6 @@
 #!/bin/bash
+# E2E test for the default HyperFrames rendering pipeline.
+# Dependencies: jq, file, curl (all expected in a standard macOS/Linux dev environment).
 set -e
 
 API="http://localhost:8000"
@@ -59,7 +61,9 @@ fi
 echo "=== 6. Download and check MP4 ==="
 FULL_URL="$API$OUTPUT_URL"
 curl -s -L "$FULL_URL" -o /tmp/clipworks_e2e_output.mp4
-FILE_SIZE=$(stat -f%z /tmp/clipworks_e2e_output.mp4)
+# Use portable stat: macOS uses -f%z, Linux uses -c%s. The fallback avoids
+# failing under set -e when running on the non-matching platform.
+FILE_SIZE=$(stat -f%z /tmp/clipworks_e2e_output.mp4 2>/dev/null || stat -c%s /tmp/clipworks_e2e_output.mp4 2>/dev/null)
 echo "Downloaded size: $FILE_SIZE bytes"
 
 if [ "$FILE_SIZE" -lt 1000 ]; then
