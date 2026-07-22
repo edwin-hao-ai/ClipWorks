@@ -168,6 +168,7 @@ export interface Project {
 
 export interface Composition {
   id: string;
+  project_id?: string;
   width: number;
   height: number;
   duration: number;

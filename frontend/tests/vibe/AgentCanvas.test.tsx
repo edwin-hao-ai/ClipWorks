@@ -1,25 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { AgentCanvas } from '@/components/project/AgentCanvas';
-import { AgentState } from '@/lib/types';
+import { AgentState, Project } from '@/lib/types';
 
 function state(step: AgentState['step'], payload: Record<string, unknown> = {}): AgentState {
   return { step, payload } as AgentState;
 }
 
 describe('AgentCanvas', () => {
-  it('renders understand summary', () => {
-    render(
-      <AgentCanvas
-        agentState={state('understand', {
-          understand: { summary: 'A product promo' },
-        })}
-      />
-    );
-    expect(screen.getByText('A product promo')).toBeInTheDocument();
-  });
-
-  it('renders understand meta chips', () => {
+  it('renders understand summary and meta chips', () => {
     render(
       <AgentCanvas
         agentState={state('understand', {
@@ -40,7 +29,7 @@ describe('AgentCanvas', () => {
     expect(screen.getByText('cyberpunk')).toBeInTheDocument();
   });
 
-  it('renders script artifact', () => {
+  it('renders script artifact with title, hook and arc', () => {
     render(
       <AgentCanvas
         agentState={state('script', {
@@ -97,24 +86,25 @@ describe('AgentCanvas', () => {
         })}
       />
     );
-    expect(screen.getByText('动效设计')).toBeInTheDocument();
+    expect(screen.getAllByText('动效设计').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText((content) => content.includes('neon'))).toBeInTheDocument();
   });
 
-  it('renders render placeholder', () => {
+  it('renders render job info', () => {
     render(<AgentCanvas agentState={state('render', { render: { job_id: 'job-1' } })} />);
     expect(screen.getByText('渲染')).toBeInTheDocument();
-    expect(screen.getByText('渲染任务已创建：job-1')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes('job-1'))).toBeInTheDocument();
   });
 
-  it('renders generic fallback for unknown steps', () => {
+  it('renders waiting message for empty non-understand steps', () => {
     render(<AgentCanvas agentState={state('chatting')} />);
-    expect(screen.getByText('当前步骤：chatting')).toBeInTheDocument();
+    expect(screen.getByText('等待输入…')).toBeInTheDocument();
+    expect(screen.getByText((content) => content.includes('chatting'))).toBeInTheDocument();
   });
 
-  it('falls back to understand when agentState is missing', () => {
+  it('renders welcome state when agentState is missing', () => {
     render(<AgentCanvas />);
-    expect(screen.getByText('等待输入…')).toBeInTheDocument();
+    expect(screen.getByText('让 AI 导演帮你做视频')).toBeInTheDocument();
   });
 
   it('falls back to top-level script when payload script is missing', () => {
@@ -168,5 +158,22 @@ describe('AgentCanvas', () => {
       />
     );
     expect(screen.getByText((content) => content.includes('legacy'))).toBeInTheDocument();
+  });
+
+  it('renders preview & storyboard when project prop is provided', () => {
+    const project = {
+      id: 'p1',
+      title: 'Ready Project',
+      source_type: 'url',
+      status: 'ready',
+      target_format: '16:9',
+      created_at: '',
+      updated_at: '',
+    } as Project;
+
+    render(<AgentCanvas project={project} scenes={[]} />);
+    expect(screen.getByText('预览 & 故事板')).toBeInTheDocument();
+    expect(screen.getByText('视频生成后会在这里预览')).toBeInTheDocument();
+    expect(screen.getByText('场景卡片')).toBeInTheDocument();
   });
 });

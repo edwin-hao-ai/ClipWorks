@@ -144,7 +144,7 @@ describe.sequential('ProjectWorkspacePage', () => {
     });
 
     render(<ProjectWorkspacePage />);
-    expect(await screen.findByText('Vibe 创作', undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByTestId('vibe-header', undefined, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByLabelText('创作进度')).toBeInTheDocument();
     expect(screen.getByLabelText('Agent 自主级别')).toBeInTheDocument();
     // The script title appears in both the top bar (h1) and AgentCanvas (h4);
@@ -173,7 +173,7 @@ describe.sequential('ProjectWorkspacePage', () => {
     expect(screen.getAllByText('生成场景').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows full editor with property panel and scene cards for ready projects', async () => {
+  it('shows three-column workspace with chat, canvas and timeline for ready projects', async () => {
     (api.get as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
       if (url === '/projects/test-id') {
         return Promise.resolve(makeProject({ title: 'Ready Project', status: 'ready' }));
@@ -186,8 +186,11 @@ describe.sequential('ProjectWorkspacePage', () => {
     });
 
     render(<ProjectWorkspacePage />);
-    expect(await screen.findByText('项目属性', undefined, { timeout: 3000 })).toBeInTheDocument();
-    expect(screen.getByText('场景卡片')).toBeInTheDocument();
+    expect(await screen.findByText('AI 导演 · 修改', undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getByText('预览 & 故事板')).toBeInTheDocument();
+    expect(screen.getByText('Timeline')).toBeInTheDocument();
+    expect(screen.getByText('打开高级编辑器 →')).toBeInTheDocument();
+    expect(screen.queryByText('项目属性')).not.toBeInTheDocument();
   });
 
   it('saves autonomy level changes and updates local state', async () => {
