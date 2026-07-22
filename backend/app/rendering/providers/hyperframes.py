@@ -38,7 +38,7 @@ class HyperFramesProvider(RenderProvider):
         try:
             # Fail fast if the renderer hangs (e.g. Chromium unavailable on
             # ARM64). Letting this sit for 300s makes the UI look frozen.
-            async with httpx.AsyncClient(timeout=90) as client:
+            async with httpx.AsyncClient(timeout=200) as client:
                 resp = await client.post(f"{RENDERER_URL}/render/hyperframes", json=payload)
                 resp.raise_for_status()
                 data = resp.json()

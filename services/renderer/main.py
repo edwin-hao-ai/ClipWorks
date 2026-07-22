@@ -165,7 +165,7 @@ def render_hyperframes(req: HyperFramesRequest):
         _HYPERFRAMES_UNAVAILABLE = True
         return {"success": False, "output_url": None, "html_output_url": _relative_url(req.html_path), "error": "HyperFrames CLI not found"}
     try:
-        out, err = proc.communicate(timeout=75)
+        out, err = proc.communicate(timeout=180)
     except subprocess.TimeoutExpired:
         _reap_process_group(proc)  # 连 Chromium 孙进程一起收割，避免僵尸累积
         try:

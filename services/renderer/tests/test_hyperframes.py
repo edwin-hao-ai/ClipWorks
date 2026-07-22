@@ -73,7 +73,7 @@ def test_render_hyperframes_timeout(sample_html, assets_dir):
     output_path = os.path.join(assets_dir, "test.mp4")
     proc = _fake_proc()
     proc.communicate.side_effect = [
-        subprocess.TimeoutExpired(cmd=["npx"], timeout=75),  # 首次 communicate 超时
+        subprocess.TimeoutExpired(cmd=["npx"], timeout=180),  # 首次 communicate 超时
         ("", ""),                                            # 收割后的 reap communicate
     ]
 
