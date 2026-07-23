@@ -279,7 +279,8 @@ def run_render(project, state: dict, user_input: Optional[str] = None, user=None
             db.commit()
             db.refresh(job)
 
-            render_video_task.delay(job.id, attached_project.id, None, None, plan)
+            quality = state.get("payload", {}).get("export_quality")
+            render_video_task.delay(job.id, attached_project.id, None, None, plan, quality=quality)
             yield sse_event("job_created", {"job_id": job.id, "status": "queued"})
             yield sse_event("progress", {"step": "render", "progress": 0, "message": "已加入渲染队列"})
             yield sse_event("artifact", {"kind": "render", "data": {"job_id": job.id, "status": "queued"}})

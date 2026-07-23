@@ -48,6 +48,22 @@ function toSameOriginUrl(url?: string | null) {
   return url;
 }
 
+// Compute placeholder frame dimensions from the project/target format so the
+// empty-state preview matches the intended output aspect ratio.
+function placeholderDimensions(format: string): { width: number; height: number } {
+  const MAX = 480;
+  const SQUARE = 360;
+  switch (format) {
+    case '9:16':
+      return { width: Math.round(MAX * 9 / 16), height: MAX };
+    case '1:1':
+      return { width: SQUARE, height: SQUARE };
+    case '16:9':
+    default:
+      return { width: MAX, height: Math.round(MAX * 9 / 16) };
+  }
+}
+
 export function AgentCanvas({
   agentState,
   project,
@@ -57,6 +73,10 @@ export function AgentCanvas({
   onSelectScene,
   format = '16:9',
 }: AgentCanvasProps) {
+  const effectiveFormat: AgentCanvasProps['format'] =
+    (project?.target_format === '16:9' || project?.target_format === '9:16' || project?.target_format === '1:1'
+      ? project.target_format
+      : format) || '16:9';
   const [currentScene, setCurrentScene] = useState(0);
 
   useEffect(() => {
@@ -89,14 +109,14 @@ export function AgentCanvas({
               <PreviewPlayer
                 outputUrl={outputUrl}
                 htmlOutputUrl={htmlOutputUrl}
-                format={format}
+                format={effectiveFormat}
                 isPlaceholder={isPlaceholder}
               />
             </div>
           ) : (
             <div
               className="relative bg-black rounded-2xl overflow-hidden shadow-2xl"
-              style={{ width: 270, height: 480 }}
+              style={placeholderDimensions(effectiveFormat)}
             >
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-4">
                 <div className="text-xl font-bold mb-2">镜 {currentScene + 1}</div>

@@ -34,14 +34,16 @@ class RenderService:
         if preferred in provider_map:
             order_names.append(preferred)
 
-        # 默认 hyperframes 失败后，按 video-use → remotion → mock 降级
-        for name in ("video-use", "remotion"):
+        # 默认 hyperframes 失败后，按 video-use → mock 降级；remotion 仅在显式指定时进入链。
+        for name in ("video-use",):
             if name in provider_map and name not in order_names:
                 order_names.append(name)
 
-        # 其余真实引擎（含未加入的）按注册顺序补入
+        # 其余真实引擎（含未加入的）按注册顺序补入；remotion 仅在显式指定时进入链。
         for p in PROVIDERS:
             if p.name == "mock" or p.name in order_names:
+                continue
+            if p.name == "remotion" and "remotion" not in order_names:
                 continue
             if not p.can_handle(request):
                 continue

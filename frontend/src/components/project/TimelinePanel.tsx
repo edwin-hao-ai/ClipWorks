@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { clsx } from 'clsx';
 import { Composition } from '@/lib/types';
 
@@ -43,12 +44,12 @@ export function TimelinePanel({ composition }: TimelinePanelProps) {
               </div>
             </div>
           ))}
-          <a
+          <Link
             href={`/projects/${composition.project_id}/editor`}
             className="block text-center text-xs px-3 py-2 rounded bg-background-elevated border border-border-subtle hover:border-border-default"
           >
             打开高级编辑器 →
-          </a>
+          </Link>
         </div>
       )}
     </div>

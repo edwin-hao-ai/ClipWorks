@@ -126,6 +126,7 @@ export interface AgentState {
     scenes?: AgentScenesPayload;
     effects?: AgentEffectsPayload;
     render?: unknown;
+    export_quality?: string;
   };
   pending_user_confirmation?: boolean;
 }

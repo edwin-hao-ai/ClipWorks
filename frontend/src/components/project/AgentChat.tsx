@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/lib/api';
 import { AgentPlan, AgentState, Project, Scene } from '@/lib/types';
 import { PlanApproval } from './PlanApproval';
+import { IntentCard } from './IntentCard';
 import { MessageSquare, Send, Bot, User, Pencil, Wand2 } from 'lucide-react';
 
 interface Message {
@@ -199,14 +200,16 @@ export function AgentChat({
   const [decisionLoading, setDecisionLoading] = useState<'approve' | 'reject' | null>(null);
   const [rejectMode, setRejectMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  // AbortController for the in-flight Vibe stream. A new message aborts the
-  // previous one, and unmounting aborts any active stream to avoid setState
-  // after teardown.
+  // AbortControllers for the in-flight streams. A new message aborts the
+  // previous one, and unmounting/changing initialPrompt aborts any active
+  // auto-initiated stream to avoid setState after teardown.
   const vibeAbortRef = useRef<AbortController | null>(null);
+  const planAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       vibeAbortRef.current?.abort();
+      planAbortRef.current?.abort();
     };
   }, []);
 
@@ -244,10 +247,11 @@ export function AgentChat({
   // conversation history. This keeps the flow continuous: user types on the
   // home page, lands in the workspace, and immediately sees the Agent respond.
   // userMessageAddedRef prevents the user bubble from being appended twice in
-  // React StrictMode, while the stream itself is intentionally restarted on the
-  // second effect invocation so that the first (aborted) attempt is replaced by
-  // a live one.
+  // React StrictMode; streamStartedForRef prevents duplicate streams for the
+  // same initialPrompt. The effect cleanup aborts any in-flight auto-initiated
+  // stream when initialPrompt/mode changes or the component unmounts.
   const userMessageAddedRef = useRef(false);
+  const streamStartedForRef = useRef<string | null>(null);
   useEffect(() => {
     if (
       (mode === 'plan' || mode === 'vibe') &&
@@ -258,16 +262,32 @@ export function AgentChat({
         userMessageAddedRef.current = true;
         setMessages((prev) => [...prev, { role: 'user', text: initialPrompt }]);
       }
+      if (streamStartedForRef.current === initialPrompt) {
+        return;
+      }
+      streamStartedForRef.current = initialPrompt;
       if (mode === 'plan') {
         handlePlanStream(initialPrompt);
       } else {
         handleVibeStream(initialPrompt);
       }
     }
+    return () => {
+      vibeAbortRef.current?.abort();
+      planAbortRef.current?.abort();
+      streamStartedForRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, initialPrompt, agentState?.messages?.length]);
+  }, [mode, initialPrompt]);
 
-  const handlePlanStream = async (text: string) => {
+  const handlePlanStream = async (text: string, signal?: AbortSignal) => {
+    planAbortRef.current?.abort();
+    const controller = new AbortController();
+    planAbortRef.current = controller;
+    if (signal) {
+      signal.addEventListener('abort', () => controller.abort());
+    }
+
     setLoading(true);
     setError(null);
     setStreamingText('');
@@ -279,7 +299,7 @@ export function AgentChat({
     try {
       for await (const event of api.stream(`/projects/${projectId}/agent/chat/stream`, {
         message: text,
-      })) {
+      }, controller.signal)) {
         if (!event || typeof event !== 'object') continue;
         if (event.type === 'token' && typeof event.text === 'string') {
           currentReply += event.text;
@@ -299,12 +319,18 @@ export function AgentChat({
         setMessages((prev) => [...prev, { role: 'agent', text: currentReply }]);
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Agent 请求失败';
       setError(msg);
       setMessages((prev) => [...prev, { role: 'agent', text: `抱歉，我没法继续：${msg}` }]);
     } finally {
-      setLoading(false);
-      setStreamingText('');
+      if (planAbortRef.current === controller) {
+        setLoading(false);
+        setStreamingText('');
+        planAbortRef.current = null;
+      }
     }
   };
 
@@ -743,6 +769,25 @@ export function AgentChat({
             告诉我哪里需要调整，AI 会重新规划方案。
           </div>
         )}
+
+        {(() => {
+          const understand = mode === 'vibe' && agentState?.step === 'understand' ? agentState?.payload?.understand : undefined;
+          if (!understand?.summary) return null;
+          return (
+            <IntentCard
+              intent={{
+                goal: understand.summary,
+                duration: understand.duration,
+                format: understand.format,
+                style: understand.style,
+              }}
+              onConfirm={() => emitAgentState({ step: 'script' })}
+              onEdit={() => {
+                setInput(`我想调整需求：${understand.summary || ''}`);
+              }}
+            />
+          );
+        })()}
 
         <div ref={bottomRef} />
       </div>

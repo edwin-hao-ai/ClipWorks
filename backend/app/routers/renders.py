@@ -77,6 +77,13 @@ def generate_video(
 
     quality = data.get("quality") if isinstance(data, dict) else None
 
+    # Remember the last selected export quality so the Vibe auto-render path can
+    # use the same setting without requiring a separate UI entry point.
+    agent_state = dict(project.agent_state or {})
+    agent_state["export_quality"] = quality
+    project.agent_state = agent_state
+    db.commit()
+
     composition_id = project.composition.id if project.composition else None
     job = RenderJob(project_id=project_id, composition_id=composition_id, status="queued")
     db.add(job)

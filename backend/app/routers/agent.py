@@ -404,6 +404,12 @@ def vibe_chat_stream(
         final_state: Optional[dict] = None
         with vibe_lock:
             state = dict(project.agent_state or {})
+            # Forward the last selected export quality from ExportSettings into the
+            # Vibe session payload so the auto-render step can use it.
+            export_quality = state.get("export_quality")
+            payload = state.setdefault("payload", {})
+            if export_quality:
+                payload["export_quality"] = export_quality
             session = AgentSession(project_id, state)
             orchestrator = Orchestrator()
             try:
