@@ -179,8 +179,11 @@ def test_run_render_creates_job_and_enqueues_task():
     assert project.title == "S"
     assert project.target_format == "16:9"
     assert project.target_duration == 30
-    mock_task.delay.assert_called_once_with("job-1", "proj-1", None, None, mock_task.delay.call_args.args[4])
-    plan = mock_task.delay.call_args.args[4]
+    assert mock_task.delay.call_count == 1
+    call_args = mock_task.delay.call_args
+    plan = call_args.args[4]
+    assert call_args.args[:4] == ("job-1", "proj-1", None, None)
+    assert call_args.kwargs.get("quality") is None
     assert plan["title"] == "S"
     assert plan["format"] == "16:9"
     assert plan["assets_needed"] == ["img1"]
